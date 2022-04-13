@@ -172,13 +172,22 @@ def clean_amount(row: pd.Series, do_raise: bool, fpath: Optional[str] = None) ->
         )
 
     amount = row.get("amount_original")
+    country, year = row["country"], row["year"]
     try:
         amount = to_decimal(amount, allow_empty=False)
         if currency == "EUR":
             return amount
-        return convert_to_euro(row["country"], row["year"], amount)
+        return convert_to_euro(country, year, amount)
     except ValueError:
         handle_error(log, InvalidAmount(amount), do_raise, row=dict(row), fpath=fpath)
+    except InvalidCountry:
+        handle_error(
+            log,
+            InvalidCurrency(f"{country}, {year}"),
+            do_raise,
+            row=dict(row),
+            fpath=fpath,
+        )
 
 
 def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
