@@ -180,14 +180,18 @@ def clean_amount(row: pd.Series, do_raise: bool, fpath: Optional[str] = None) ->
         return convert_to_euro(country, year, amount)
     except ValueError:
         handle_error(log, InvalidAmount(amount), do_raise, row=dict(row), fpath=fpath)
-    except InvalidCountry:
+    except KeyError as e:
         handle_error(
             log,
-            InvalidCurrency(f"{country}, {year}"),
+            InvalidCurrency(f"No currency conversion for `{e}`"),
             do_raise,
             row=dict(row),
+            year=year,
+            country=country,
             fpath=fpath,
         )
+    except InvalidCountry as e:
+        handle_error(log, e, do_raise, row=dict(row), fpath=fpath)
 
 
 def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
