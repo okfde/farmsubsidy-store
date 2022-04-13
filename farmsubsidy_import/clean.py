@@ -208,8 +208,9 @@ def apply_clean(
     }
 
     # safe original amounts before conversion
+    # FIXME
     try:
-        df["amount_original"] = df["amount"].map(to_decimal)
+        df["amount_original"] = df["amount"]
         df["currency_original"] = df["currency"]
         df["currency"] = "EUR"
     except Exception as e:
@@ -217,6 +218,8 @@ def apply_clean(
 
     for col, func in funcs.items():
         df[col] = df.apply(func, axis=1)
+
+    df["amount_original"] = df["amount_original"].map(to_decimal)
 
     return df
 
