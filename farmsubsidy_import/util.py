@@ -17,7 +17,7 @@ def handle_error(logger, e: Exception, do_raise: bool, **kwargs):
 
 
 def get_context_from_filename(fname: str) -> Tuple[Union[str, None], Union[str, None]]:
-    m = re.match(r".*(?P<country>[\w]{2})_(?P<year>[\d]{4})", fname)
+    m = re.match(r".*(?P<country>[a-z\D]{2})_(?P<year>[\d]{4})", fname)
     if m:
         return m.groups()
     return None, None
