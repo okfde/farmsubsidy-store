@@ -104,10 +104,11 @@ def validate_country(value: str, do_raise: bool, fpath: Optional[str] = None) ->
 
 
 def clean_recipient_id(row: pd.Series) -> str:
+    country = row["recipient_country"]
     if row.get("recipient_id"):
-        return make_entity_id(row["recipient_id"])
+        return make_entity_id(country, row["recipient_id"])
     else:
-        return make_entity_id(row["recipient_fingerprint"], row["year"])
+        return make_entity_id(country, row["recipient_fingerprint"], row["year"])
 
 
 def clean_recipient_address(row: pd.Series) -> str:
@@ -213,9 +214,9 @@ def apply_clean(
     funcs = {
         # column: clean_function
         "amount": lambda r: clean_amount(r, do_raise, fpath),
-        "recipient_id": clean_recipient_id,
         "recipient_address": clean_recipient_address,
         "recipient_country": lambda r: clean_recipient_country(r, do_raise, fpath),
+        "recipient_id": clean_recipient_id,
         "scheme": clean_scheme,
         "scheme_code": clean_scheme_code,
     }
@@ -253,5 +254,10 @@ def clean(
         lambda x: validate_country(x, not ignore_errors, fpath)
     )
     df = apply_clean(df, do_raise=not ignore_errors, fpath=fpath)
+    # filter out empty recipients (no name in source csv):
+    df = df[df["recipient_fingerprint"] != ""]
     df = ensure_columns(df)
+    df = df.drop_duplicates(
+        subset=("year", "country", "recipient_id", "scheme", "amount")
+    )
     return df
