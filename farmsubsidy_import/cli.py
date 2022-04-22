@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 
@@ -5,7 +6,7 @@ import click
 
 from . import clean, db, settings
 from .logging import configure_logging, get_logger
-from .util import get_context_from_filename, read_csv
+from .util import get_context_from_filename, read_csv, to_json
 
 log = get_logger(__name__)
 
@@ -58,23 +59,36 @@ def db_clean(infile, outfile, ignore_errors, year=None, country=None):
         log.info(f"Cleaned `{infile.name}`.", outfile=outfile.name)
 
 
-@cli.group("db", help="Duckdb related operations")
-def cli_db():
-    pass
+@cli.group("db", help="Database related operations")
+@click.option(
+    "--driver",
+    help="Database: `psql` or `duckdb`",
+    default=settings.DRIVER,
+    show_default=True,
+)
+@click.pass_context
+def cli_db(ctx, driver):
+    if driver not in ("psql", "duckdb"):
+        raise click.ClickException(
+            "Invalid `driver` argument (none of: `psql`, `duckdb`)"
+        )
+    ctx.obj = {"driver": driver}
+    log.info(f"Using database driver: `{driver}` ({settings.DATABASE_URI})")
 
 
-@cli_db.command("init", help="Initialize duckdb database and table.")
+@cli_db.command("init", help="Initialize database and table.")
 @click.option(
     "--recreate/--no-recreate",
     help="Recreate database if it already exists.",
     default=False,
     show_default=True,
 )
-def db_init(recreate):
-    db.init(recreate)
+@click.pass_obj
+def db_init(obj, recreate):
+    db.init(obj["driver"], recreate)
 
 
-@cli_db.command("import", help="Import cleaned csv into duckdb")
+@cli_db.command("import", help="Import cleaned csv into database")
 @click.option("-i", "--infile", type=click.File("r"), default="-")
 @click.option(
     "--ignore-errors/--no-ignore-errors",
@@ -83,18 +97,33 @@ def db_init(recreate):
     help="Don't fail on errors, only log them.",
     show_default=True,
 )
-def db_import(infile, ignore_errors):
+@click.pass_obj
+def db_import(obj, infile, ignore_errors):
     df = read_csv(infile)
-    res = db.insert(df, not ignore_errors, infile.name)
-    log.info(f"Inserted {res} rows.", duckdb=settings.DUCKDB_PATH, infile=infile.name)
+    res = db.insert(obj["driver"], df, not ignore_errors, infile.name)
+    log.info(f"Inserted {res} rows.", db=settings.DATABASE_URI, infile=infile.name)
 
 
 @cli_db.command("index", help="Build database index for recipient search")
-def db_index():
-    log.info("Build indexes...", duckdb=settings.DUCKDB_PATH)
+@click.pass_obj
+def db_index(obj):
+    log.info("Build indexes...", db=settings.DATABASE_URI)
     start = time.time()
-    db.index()
+    db.index(obj["driver"])
+    end = time.time()
+    log.info(f"Build index complete. Took {end - start} sec.", db=settings.DATABASE_URI)
+
+
+@cli_db.command("aggregations", help="Print out some useful aggregations as json")
+@click.option("-o", "--outfile", type=click.File("w"), default="-")
+@click.pass_obj
+def db_aggregations(obj, outfile):
+    log.info("Build aggregations...", db=settings.DATABASE_URI)
+    start = time.time()
+    res = db.get_aggregations(obj["driver"])
     end = time.time()
     log.info(
-        f"Build index complete. Took {end - start} sec.", duckdb=settings.DUCKDB_PATH
+        f"Build aggregations complete. Took {end - start} sec.",
+        db=settings.DATABASE_URI,
     )
+    json.dump(res, outfile, default=to_json)

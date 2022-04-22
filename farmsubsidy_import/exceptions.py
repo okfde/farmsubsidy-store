@@ -12,3 +12,7 @@ class InvalidAmount(Exception):
 
 class InvalidCountry(Exception):
     pass
+
+
+class ImproperlyConfigured(Exception):
+    pass

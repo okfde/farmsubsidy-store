@@ -1,7 +1,11 @@
 # farmsubsidy-import
 
 Scripts and pipeline to import [farmsubsidy data](https://data.farmsubsidy.org/latest/)
-into a [duckdb database](https://duckdb.org/).
+into different databases.
+
+Currently supported database backends:
+- [duckdb](https://duckdb.org/)
+- postgres
 
 Pipeline steps:
 - download data
@@ -16,8 +20,10 @@ cleaning and importing is done by a simple command line tool:
 
 that takes a few environment variables (or a default):
 
-    DATA_ROOT      # default: ./data, storing downloaded & cleaned data
-    DUCKDB_PATH    # default: ./farmsubsidy.duckdb
+    DRIVER         # default: "psql", alternative: "duckdb"
+    DATA_ROOT      # default: "./data", storing downloaded & cleaned data
+    DATABASE_URI   # default: "postgresql:///farmsubsidy" for "psql" DRIVER or "./farmsubsidy.duckdb"
+                   # for "duckdb" DRIVER
 
 The client either axcepts csv as `stdin`/`stdout` streams or as argument to a file:
 

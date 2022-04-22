@@ -23,8 +23,9 @@ def get_context_from_filename(fname: str) -> Tuple[Union[str, None], Union[str, 
     return None, None
 
 
-def read_csv(infile: File, do_raise: Optional[bool] = True) -> pd.DataFrame:
+def read_csv(infile: File, do_raise: Optional[bool] = True, fillna="") -> pd.DataFrame:
     read_kwargs = {"dtype": str, "on_bad_lines": "warn"}
+    df = None
     try:
         if infile.name.endswith(".gz"):
             df = pd.read_csv(infile.name, compression="gzip", **read_kwargs)
@@ -32,4 +33,14 @@ def read_csv(infile: File, do_raise: Optional[bool] = True) -> pd.DataFrame:
             df = pd.read_csv(infile, **read_kwargs)
     except Exception as e:
         handle_error(log, e, do_raise, fpath=infile.name)
-    return df
+    if df is not None:
+        return df.fillna(fillna)
+
+
+def to_json(value):
+    try:
+        if int(value) == float(value):
+            return int(value)
+        return float(value)
+    except ValueError:
+        return str(value)

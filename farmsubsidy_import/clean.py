@@ -1,4 +1,5 @@
 from typing import Optional
+import uuid
 
 import countrynames
 import pandas as pd
@@ -108,6 +109,8 @@ def clean_recipient_id(row: pd.Series) -> str:
     if row.get("recipient_id"):
         return make_entity_id(country, row["recipient_id"])
     else:
+        if row["fingerprint"] is None:  # empty name
+            return make_entity_id(country, row["year"], uuid.uuid4())
         return make_entity_id(country, row["recipient_fingerprint"], row["year"])
 
 
@@ -254,8 +257,6 @@ def clean(
         lambda x: validate_country(x, not ignore_errors, fpath)
     )
     df = apply_clean(df, do_raise=not ignore_errors, fpath=fpath)
-    # filter out empty recipients (no name in source csv):
-    df = df[df["recipient_fingerprint"] != ""]
     df = ensure_columns(df)
     df = df.drop_duplicates(
         subset=("year", "country", "recipient_id", "scheme", "amount")

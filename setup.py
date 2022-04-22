@@ -26,10 +26,12 @@ setup(
     install_requires=[
         "Click",
         "countrynames",
+        "dataset",
         "duckdb",
         "fingerprints",
         "followthemoney",
         "pandas",
+        "psycopg2",
         "structlog",
     ],
     entry_points={

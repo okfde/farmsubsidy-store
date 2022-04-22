@@ -1,5 +1,5 @@
+export DRIVER ?= psql
 export DATA_ROOT ?= `pwd`/data
-export DUCKDB_PATH ?= `pwd`/farmsubsidy.duckdb
 export LOG_LEVEL ?= info
 
 all: init download clean import
