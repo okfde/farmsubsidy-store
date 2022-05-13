@@ -62,6 +62,10 @@ It will raise an error if the table already exists, force recreation (and deleti
 
 ### other db related commands
 
+execute raw queries:
+
+    fscli db query "select * from farmsubsidy where recipient_id = '4a7ccb6345a2a3d8cf9a2478e408f0cd962e4883'"
+
 generate basic aggregations:
 
     fscli db aggregations > aggregations.json
