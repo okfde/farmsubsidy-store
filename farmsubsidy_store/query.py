@@ -1,4 +1,7 @@
+from banal import is_listish
 from typing import Any, Iterable, Iterator, Optional
+
+import pandas as pd
 
 from . import settings
 from .exceptions import InvalidQuery
@@ -12,6 +15,7 @@ class Query:
         "gte": ">=",
         "lt": "<",
         "lte": "<=",
+        "in": "IN",
     }
 
     fields = "*"
@@ -30,7 +34,8 @@ class Query:
         order_direction: Optional[str] = "ASC",
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-        **filters,
+        where_lookup: Optional[dict] = None,
+        having_lookup: Optional[dict] = None,
     ):
         if table is None:
             if driver is not None:
@@ -46,43 +51,61 @@ class Query:
         self.order_direction = order_direction
         self.limit = limit
         self.offset = offset
-        self.filters = filters
+        self.where_lookup = where_lookup
+        self.having_lookup = having_lookup
 
     def __str__(self) -> str:
         return self.get_query()
 
     def __iter__(self) -> Iterator[Any]:
+        df = self.execute()
+        for _, row in df.iterrows():
+            yield self.apply_result(row)
+
+    def execute(self) -> pd.DataFrame:
         """actually return results from `self.driver`"""
         if self.driver is None:
             raise InvalidQuery("No driver for this query.")
-        df = self.driver.query(self.get_query())
-        for _, row in df.iterrows():
-            if self.result_cls is not None:
-                yield self.result_cls(**row)
-            else:
-                yield row
+        return self.driver.query(self.get_query())
+
+    def apply_result(self, row) -> Any:
+        if self.result_cls is not None:
+            return self.result_cls(**row)
+        else:
+            return row
+
+    def first(self):
+        # return the first object
+        for res in self:
+            return res
 
     def _chain(self, **kwargs):
-        old_kwargs = {
-            **{
-                "driver": self.driver,
-                "table": self.table,
-                "result_cls": self.result_cls,
-                "fields": self.fields,
-                "group_by_fields": self.group_by_fields,
-                "order_by_fields": self.order_by_fields,
-                "order_direction": self.order_direction,
-            },
-            **self.filters,
-        }
-        new_kwargs = {**old_kwargs, **kwargs}
+        # merge current state
+        new_kwargs = self.__dict__.copy()
+        for key, new_value in kwargs.items():
+            old_value = new_kwargs[key]
+            if old_value is None:
+                new_kwargs[key] = new_value
+            # overwrite order by
+            elif key == "order_by_fields":
+                new_kwargs[key] = new_value
+            # combine tuples and dicts
+            elif isinstance(old_value, tuple):
+                new_kwargs[key] = old_value + new_value
+            elif isinstance(old_value, dict):
+                new_kwargs[key] = {**old_value, **new_value}
+            else:  # replace
+                new_kwargs[key] = new_value
         return self.__class__(**new_kwargs)
 
     def select(self, *fields) -> "Query":
         return self._chain(fields=fields)
 
     def where(self, **filters) -> "Query":
-        return self._chain(**filters)
+        return self._chain(where_lookup=filters)
+
+    def having(self, **filters) -> "Query":
+        return self._chain(having_lookup=filters)
 
     def group_by(self, *fields) -> "Query":
         return self._chain(group_by_fields=fields)
@@ -111,12 +134,10 @@ class Query:
     def fields_part(self) -> str:
         return ", ".join(self.fields or "*")
 
-    @property
-    def where_part(self) -> str:
-        if not self.filters:
-            return ""
+    def _get_lookup_part(self, lookup: dict) -> str:
+        # for where and having
         parts = []
-        for field, value in self.filters.items():
+        for field, value in lookup.items():
             field, *operator = field.split("__")
             if operator:
                 if len(operator) > 1:
@@ -124,10 +145,29 @@ class Query:
                 operator = operator[0]
                 if operator not in self.OPERATORS:
                     raise InvalidQuery(f"Invalid operator: {operator}")
-                parts.append(f"{field} {self.OPERATORS[operator]} '{value}'")
+                if operator == "in":
+                    if not is_listish(value):
+                        raise InvalidQuery(f"Invalid value for `IN` operator: {value}")
+                    values = ", ".join([f"'{v}'" for v in value])
+                    value = f"({values})"
+                else:
+                    value = f"'{value}'"
+                parts.append(" ".join((field, self.OPERATORS[operator], value)))
             else:
                 parts.append(f"{field} = '{value}'")
-        return " WHERE " + " AND ".join(parts)
+        return " AND ".join(parts)
+
+    @property
+    def where_part(self) -> str:
+        if not self.where_lookup:
+            return ""
+        return " WHERE " + self._get_lookup_part(self.where_lookup)
+
+    @property
+    def having_part(self) -> str:
+        if not self.group_part or not self.having_lookup:
+            return ""
+        return " HAVING " + self._get_lookup_part(self.having_lookup)
 
     @property
     def group_part(self) -> str:
@@ -155,7 +195,16 @@ class Query:
         return f" OFFSET {offset}"
 
     def get_query(self) -> str:
-        q = f"SELECT {self.fields_part} FROM {self.table}{self.where_part}{self.group_part}{self.order_part}{self.limit_part}"
+        rest = "".join(
+            (
+                self.where_part,
+                self.group_part,
+                self.having_part,
+                self.order_part,
+                self.limit_part,
+            )
+        ).strip()
+        q = f"SELECT {self.fields_part} FROM {self.table} {rest}"
         return q.strip()
 
 
@@ -166,6 +215,14 @@ class _RecipientOuterQuery(Query):
         "groupUniqArray(recipient_name) as name",
         "groupUniqArray(recipient_country) as country",
         "groupUniqArray(recipient_address) as address",
+    )
+    group_by_fields = ("recipient_id",)
+    order_by_fields = ("recipient_id",)
+
+
+class RecipientQuery(Query):
+    fields = (
+        "recipient_id",
         "count(*) as total_payments",
         "sum(amount) as amount_sum",
         "avg(amount) as amount_avg",
@@ -175,16 +232,16 @@ class _RecipientOuterQuery(Query):
     group_by_fields = ("recipient_id",)
     order_by_fields = ("recipient_id",)
 
-
-class RecipientQuery(Query):
-    fields = ("recipient_id",)
-    group_by_fields = ("recipient_id",)
-    order_by_fields = ("recipient_id",)
-
-    def get_query(self):
-        inner = super().get_query()
-        outer = _RecipientOuterQuery()
-        return f"SELECT {outer.fields_part} FROM {self.table} WHERE recipient_id IN ({inner}) {self.group_part} {self.order_part}"
+    def __iter__(self):
+        df = self.execute()
+        if len(df):
+            outer = _RecipientOuterQuery(driver=self.driver).where(
+                recipient_id__in=df["recipient_id"].to_list()
+            )
+            df_outer = outer.execute()
+            df = df.merge(df_outer, left_on="recipient_id", right_on="id")
+        for _, row in df.iterrows():
+            yield self.apply_result(row)
 
 
 class SchemeQuery(Query):

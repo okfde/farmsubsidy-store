@@ -29,8 +29,8 @@ class ClikhouseSearchTestCase(ClickhouseTestCase):
         )
 
         # additional filter
-        s = RecipientNameSearch("ANDY BRISBOIS", year=2019)
-        res = s.query()
+        s = RecipientNameSearch("ANDY BRISBOIS")
+        res = s.query().where(year=2019)
         res = list(res)
         self.assertEqual(len(res), 1)
         res = res[0]
@@ -52,8 +52,8 @@ class ClikhouseSearchTestCase(ClickhouseTestCase):
         )
 
         # no result
-        s = RecipientNameSearch("ANDY BRISBOIS", year=2018)
-        res = s.query()
+        s = RecipientNameSearch("ANDY BRISBOIS")
+        res = s.query().where(year=2018)
         res = list(res)
         self.assertEqual(len(res), 0)
 
@@ -101,8 +101,8 @@ class ClikhouseSearchTestCase(ClickhouseTestCase):
         res = list(res)
         self.assertEqual(len(res), 1)
 
-        s = SchemeSearch("IV/A.15", country="AT")
-        res = s.query()
+        s = SchemeSearch("IV/A.15")
+        res = s.query().where(country="AT")
         res = list(res)
         self.assertEqual(len(res), 0)
 

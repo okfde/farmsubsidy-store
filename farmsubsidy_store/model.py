@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from .drivers import get_driver
-from .query import Query, RecipientQuery, SchemeQuery
+from .query import CountryQuery, Query, RecipientQuery, SchemeQuery, YearQuery
 
 
 class BaseORM:
@@ -16,8 +16,7 @@ class BaseORM:
         res = db.select(query_cls=cls._query_cls, result_cls=cls).where(
             **{cls._lookup_field: lookup_value}
         )
-        for item in res:
-            return item
+        return res.first()
 
     @classmethod
     def select(cls, *fields) -> Query:
@@ -43,6 +42,18 @@ class Payment(BaseORM, BaseModel):
     amount_original: Optional[float] = None
     currency_original: Optional[str] = None
 
+    def get_recipient(self) -> "Recipient":
+        return Recipient.get(self.recipient_id)
+
+    def get_scheme(self) -> "Scheme":
+        return Scheme.get(self.scheme)
+
+    def get_year(self) -> "Year":
+        return Year.get(self.year)
+
+    def get_country(self) -> "Country":
+        return Country.get(self.country)
+
 
 class Recipient(BaseORM, BaseModel):
     """name, address, country, url are always multi-valued"""
@@ -65,6 +76,18 @@ class Recipient(BaseORM, BaseModel):
     @property
     def payments(self) -> Query:
         return Payment.select().where(recipient_id=self.id)
+
+    @property
+    def schemes(self) -> Query:
+        return Scheme.select().where(recipient_id=self.id)
+
+    @property
+    def years(self) -> Query:
+        return Year.select().where(recipient_id=self.id)
+
+    @property
+    def countries(self) -> Query:
+        return Country.select().where(recipient_id=self.id)
 
 
 class Scheme(BaseORM, BaseModel):
@@ -89,9 +112,18 @@ class Scheme(BaseORM, BaseModel):
     def payments(self) -> Query:
         return Payment.select().where(scheme=self.scheme)
 
+    @property
+    def years(self) -> Query:
+        return Year.select().where(scheme=self.scheme)
+
+    @property
+    def countries(self) -> Query:
+        return Country.select().where(scheme=self.scheme)
+
 
 class Country(BaseORM, BaseModel):
     _lookup_field = "country"
+    _query_cls = CountryQuery
 
     country: str
     total_recipients: int
@@ -104,15 +136,24 @@ class Country(BaseORM, BaseModel):
 
     @property
     def recipients(self) -> RecipientQuery:
-        return Recipient.select().where(scheme=self.scheme)
+        return Recipient.select().where(country=self.country)
 
     @property
     def payments(self) -> Query:
-        return Payment.select().where(scheme=self.scheme)
+        return Payment.select().where(country=self.country)
+
+    @property
+    def schemes(self) -> Query:
+        return Scheme.select().where(country=self.country)
+
+    @property
+    def years(self) -> Query:
+        return Year.select().where(country=self.country)
 
 
 class Year(BaseORM, BaseModel):
     _lookup_field = "year"
+    _query_cls = YearQuery
 
     year: int
     total_recipients: int
@@ -125,8 +166,16 @@ class Year(BaseORM, BaseModel):
 
     @property
     def recipients(self) -> RecipientQuery:
-        return Recipient.select().where(scheme=self.scheme)
+        return Recipient.select().where(year=self.year)
 
     @property
     def payments(self) -> Query:
-        return Payment.select().where(scheme=self.scheme)
+        return Payment.select().where(year=self.year)
+
+    @property
+    def schemes(self) -> Query:
+        return Scheme.select().where(year=self.year)
+
+    @property
+    def countries(self) -> Query:
+        return Country.select().where(year=self.year)

@@ -1,10 +1,14 @@
 from unittest import TestCase
 
+from farmsubsidy_store import settings
 from farmsubsidy_store.exceptions import InvalidQuery
 from farmsubsidy_store.query import Query
 
 
 class QueryTestCase(TestCase):
+    def setUp(self):
+        settings.DATABASE_TABLE = "farmsubsidy"
+
     def test_query(self):
         q = Query()
         self.assertEqual(str(q), "SELECT * FROM farmsubsidy")
@@ -65,6 +69,11 @@ class QueryTestCase(TestCase):
         q = Query().where(amount__lte=10)
         self.assertEqual(str(q), "SELECT * FROM farmsubsidy WHERE amount <= '10'")
 
+        q = Query().where(foo__in=(1, 2, 3))
+        self.assertEqual(
+            str(q), "SELECT * FROM farmsubsidy WHERE foo IN ('1', '2', '3')"
+        )
+
     def test_query_slice(self):
         q = Query()[:100]
         self.assertEqual(str(q), "SELECT * FROM farmsubsidy LIMIT 0, 100")
@@ -77,6 +86,42 @@ class QueryTestCase(TestCase):
 
         q = Query()[17]
         self.assertEqual(str(q), "SELECT * FROM farmsubsidy LIMIT 17, 1")
+
+    def test_query_having(self):
+        q = (
+            Query()
+            .select("country", "sum(amount) as amount_sum")
+            .where(year=2019)
+            .group_by("country")
+            .having(amount_sum__gte=100)
+        )
+        self.assertEqual(
+            str(q),
+            "SELECT country, sum(amount) as amount_sum FROM farmsubsidy WHERE year = '2019' GROUP BY country HAVING amount_sum >= '100'",
+        )
+
+        # no having if no group by
+        q = Query().having(foo="bar")
+        self.assertEqual(str(q), "SELECT * FROM farmsubsidy")
+        self.assertEqual(
+            str(q.group_by("foo")),
+            "SELECT * FROM farmsubsidy GROUP BY foo HAVING foo = 'bar'",
+        )
+
+    def test_query_correct_update(self):
+        q = Query().select("a").where(foo="bar").select("b", "c").where(d=1, e="f")
+        self.assertEqual(
+            str(q),
+            "SELECT a, b, c FROM farmsubsidy WHERE foo = 'bar' AND d = '1' AND e = 'f'",
+        )
+
+        # group by should be combined
+        q = Query().group_by("a").group_by("b")
+        self.assertEqual(str(q), "SELECT * FROM farmsubsidy GROUP BY a, b")
+
+        # order by should be overwritten!
+        q = Query().order_by("a").order_by("b")
+        self.assertEqual(str(q), "SELECT * FROM farmsubsidy ORDER BY b ASC")
 
     def test_query_invalid(self):
         with self.assertRaisesRegex(InvalidQuery, "must not be negative"):
