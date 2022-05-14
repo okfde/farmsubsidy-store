@@ -5,14 +5,15 @@ import pandas as pd
 
 from . import settings
 from .aggregations import AGGREGATIONS
-from .drivers import get_driver, Driver, default_driver
+from .drivers import get_driver, Driver
 from .logging import get_logger
 from .util import handle_error
 
 log = get_logger(__name__)
 
 
-def init(driver: Optional[Driver] = default_driver, recreate: Optional[bool] = False):
+def init(driver: Optional[Driver] = None, recreate: Optional[bool] = False):
+    driver = driver or get_driver()
     try:
         driver.init(recreate=recreate)
     except Exception as e:
@@ -27,10 +28,11 @@ def init(driver: Optional[Driver] = default_driver, recreate: Optional[bool] = F
 
 def insert(
     df: pd.DataFrame,
-    driver: Optional[Driver] = default_driver,
+    driver: Optional[Driver] = None,
     do_raise: Optional[bool] = True,
     fpath: Optional[str] = None,
 ) -> int:
+    driver = driver or get_driver()
     try:
         res = driver.insert(df)
         return res
@@ -38,8 +40,9 @@ def insert(
         handle_error(log, e, do_raise, fpath=fpath)
 
 
-def get_aggregations(driver: Optional[Driver] = default_driver):
+def get_aggregations(driver: Optional[Driver] = None):
     """print some aggs"""
+    driver = driver or get_driver()
     data = {}
     for key, get_agg in AGGREGATIONS.items():
         df = get_agg(driver)

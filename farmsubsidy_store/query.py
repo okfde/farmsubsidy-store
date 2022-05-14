@@ -58,7 +58,7 @@ class Query:
         df = self.driver.query(self.get_query())
         for _, row in df.iterrows():
             if self.result_cls is not None:
-                yield self.result_cls(_driver=self.driver, **row)
+                yield self.result_cls(**row)
             else:
                 yield row
 
@@ -71,6 +71,7 @@ class Query:
                 "fields": self.fields,
                 "group_by_fields": self.group_by_fields,
                 "order_by_fields": self.order_by_fields,
+                "order_direction": self.order_direction,
             },
             **self.filters,
         }

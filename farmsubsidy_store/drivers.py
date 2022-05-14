@@ -180,18 +180,20 @@ class Duckdb(Driver):
 
 @lru_cache(128)
 def get_driver(
-    driver: Optional[str] = settings.DRIVER,
-    uri: Optional[str] = settings.DATABASE_URI,
-    table: Optional[str] = settings.DATABASE_TABLE,
+    driver: Optional[str] = None,
+    uri: Optional[str] = None,
+    table: Optional[str] = None,
     read_only: Optional[bool] = True,
 ) -> Driver:
+
+    # this allows overwriting settings during runtime (aka tests)
+    driver = driver or settings.DRIVER
+    uri = uri or settings.DATABASE_URI
+    table = table or settings.DATABASE_TABLE
+
     if driver not in settings.SUPPORTED_DRIVERS:
         raise ImproperlyConfigured(f"Not a supported DB driver: `{driver}`")
     if driver == "clickhouse":
         return Clickhouse(table, uri)
     if driver == "duckdb":
         return Duckdb(table, uri, read_only=read_only)
-
-
-# default driver based on ENV
-default_driver = get_driver()

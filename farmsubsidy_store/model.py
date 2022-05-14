@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from .drivers import Driver, default_driver
+from .drivers import get_driver
 from .query import Query, RecipientQuery, SchemeQuery
 
 
@@ -11,16 +11,18 @@ class BaseORM:
     _query_cls = Query
 
     @classmethod
-    def get(cls, lookup_value: str, driver: Optional[Driver] = default_driver):
-        res = driver.select(query_cls=cls._query_cls, result_cls=cls).where(
+    def get(cls, lookup_value: str):
+        db = get_driver()
+        res = db.select(query_cls=cls._query_cls, result_cls=cls).where(
             **{cls._lookup_field: lookup_value}
         )
         for item in res:
             return item
 
     @classmethod
-    def select(cls, driver: Optional[Driver] = default_driver, *fields) -> Query:
-        return driver.select(query_cls=cls._query_cls, result_cls=cls, fields=fields)
+    def select(cls, *fields) -> Query:
+        db = get_driver()
+        return db.select(query_cls=cls._query_cls, result_cls=cls, fields=fields)
 
 
 class Payment(BaseORM, BaseModel):
@@ -60,12 +62,9 @@ class Recipient(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
-    class Config:
-        extra = "allow"
-
     @property
     def payments(self) -> Query:
-        return Payment.select(self._driver).where(recipient_id=self.id)
+        return Payment.select().where(recipient_id=self.id)
 
 
 class Scheme(BaseORM, BaseModel):
@@ -82,16 +81,13 @@ class Scheme(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
-    class Config:
-        extra = "allow"
-
     @property
     def recipients(self) -> RecipientQuery:
-        return Recipient.select(self._driver).where(scheme=self.scheme)
+        return Recipient.select().where(scheme=self.scheme)
 
     @property
     def payments(self) -> Query:
-        return Payment.select(self._driver).where(scheme=self.scheme)
+        return Payment.select().where(scheme=self.scheme)
 
 
 class Country(BaseORM, BaseModel):
@@ -106,16 +102,13 @@ class Country(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
-    class Config:
-        extra = "allow"
-
     @property
     def recipients(self) -> RecipientQuery:
-        return Recipient.select(self._driver).where(scheme=self.scheme)
+        return Recipient.select().where(scheme=self.scheme)
 
     @property
     def payments(self) -> Query:
-        return Payment.select(self._driver).where(scheme=self.scheme)
+        return Payment.select().where(scheme=self.scheme)
 
 
 class Year(BaseORM, BaseModel):
@@ -132,8 +125,8 @@ class Year(BaseORM, BaseModel):
 
     @property
     def recipients(self) -> RecipientQuery:
-        return Recipient.select(self._driver).where(scheme=self.scheme)
+        return Recipient.select().where(scheme=self.scheme)
 
     @property
     def payments(self) -> Query:
-        return Payment.select(self._driver).where(scheme=self.scheme)
+        return Payment.select().where(scheme=self.scheme)

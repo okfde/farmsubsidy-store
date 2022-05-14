@@ -1,8 +1,5 @@
-from typing import Optional
-
 import fingerprints
 
-from .drivers import Driver, default_driver
 from .exceptions import InvalidSearch
 from .model import Recipient, Scheme
 from .query import Query
@@ -12,14 +9,8 @@ class Search:
     field = None
     model = None
 
-    def __init__(
-        self,
-        q,
-        driver: Optional[Driver] = default_driver,
-        **filters,
-    ):
+    def __init__(self, q, **filters):
         self.q = q
-        self.driver = driver
         self.filters = filters
 
     def get_search_string(self) -> str:
@@ -30,7 +21,7 @@ class Search:
         if not q:
             raise InvalidSearch("Search string is empty")
         where = {**{f"{self.field}__ilike": f"%{q}%"}, **self.filters}
-        return self.model.select(self.driver).where(**where)
+        return self.model.select().where(**where)
 
 
 class RecipientNameSearch(Search):

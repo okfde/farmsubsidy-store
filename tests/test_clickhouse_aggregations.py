@@ -1,9 +1,12 @@
+from farmsubsidy_store import aggregations
 from tests.util import ClickhouseTestCase
 
-from farmsubsidy_store import aggregations
+from .util import get_clickhouse_test_driver
 
 
 class ClickhouseAggregationsTestCase(ClickhouseTestCase):
+    driver = get_clickhouse_test_driver()
+
     def test_clickhouse_aggregations(self):
         by_country = aggregations.AGGREGATIONS["by_country"]
         by_year = aggregations.AGGREGATIONS["by_year"]
