@@ -10,6 +10,10 @@ from .exceptions import ImproperlyConfigured
 from .query import Query, RecipientListQuery, SchemeListQuery
 
 
+# don't show clickhouse numpy warnings:
+logging.getLogger("clickhouse_driver.columns.service").setLevel(logging.ERROR)
+
+
 @lru_cache(128)
 def _get_connection(
     driver: str,
