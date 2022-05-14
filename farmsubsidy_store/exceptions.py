@@ -20,3 +20,11 @@ class ImproperlyConfigured(Exception):
 
 class InvalidSearch(Exception):
     pass
+
+
+class InvalidQuery(Exception):
+    pass
+
+
+class ApiError(Exception):
+    pass

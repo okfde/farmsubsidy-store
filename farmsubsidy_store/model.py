@@ -2,10 +2,28 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from .drivers import Driver, current_driver
+from .drivers import Driver, default_driver
+from .query import Query, RecipientQuery, SchemeQuery
 
 
-class Payment(BaseModel):
+class BaseORM:
+    _lookup_field = "pk"
+    _query_cls = Query
+
+    @classmethod
+    def get(cls, lookup_value: str, driver: Optional[Driver] = default_driver):
+        res = driver.select(query_cls=cls._query_cls, result_cls=cls).where(
+            **{cls._lookup_field: lookup_value}
+        )
+        for item in res:
+            return item
+
+    @classmethod
+    def select(cls, driver: Optional[Driver] = default_driver, *fields) -> Query:
+        return driver.select(query_cls=cls._query_cls, result_cls=cls, fields=fields)
+
+
+class Payment(BaseORM, BaseModel):
     pk: str
     country: str
     year: int
@@ -24,103 +42,98 @@ class Payment(BaseModel):
     currency_original: Optional[str] = None
 
 
-class Recipient(BaseModel):
+class Recipient(BaseORM, BaseModel):
     """name, address, country, url are always multi-valued"""
+
+    _lookup_field = "recipient_id"
+    _query_cls = RecipientQuery
 
     id: str
     name: List[str]
     address: Optional[List[str]] = []
-    country: Optional[List[str]] = None  # FIXME
+    country: List[str]
     url: Optional[List[str]] = []
-    payments: Optional[List[Payment]] = []
     years: List[int] = []
     total_payments: int
-    sum_amount: float
-    avg_amount: float
-    max_amount: float
-    min_amount: float
+    amount_sum: float
+    amount_avg: float
+    amount_max: float
+    amount_min: float
 
-    @classmethod
-    def get(
-        cls, recipient_id: str, driver: Optional[Driver] = current_driver
-    ) -> "Recipient":
-        """return `Recipient` with `recipient_id` including all payments"""
-        df = driver.select(recipient_id=recipient_id)
-        return cls._aggregate(df, recipient_id)
+    class Config:
+        extra = "allow"
 
-    @classmethod
-    def select(
-        cls, driver: Optional[Driver] = current_driver, **filters
-    ) -> List["Recipient"]:
-        """return generator of `Recipient` instances"""
-        df = driver.select_recipients(**filters)
-        for _, row in df.iterrows():
-            # FIXME country vs. recipient_country
-            row["country"] = row["recipient_country"]
-            yield cls(**row)
-
-    @classmethod
-    def _aggregate(cls, df, recipient_id) -> "Recipient":
-        data = {
-            "id": recipient_id,
-            "name": list(df["recipient_name"].unique()),
-            "address": list(df["recipient_address"].unique()),
-            "years": list(df["year"].unique()),
-            "country": list(df["recipient_country"].unique()),
-            "url": list(df["recipient_url"].unique()),
-            "total_payments": len(df),
-            "sum_amount": df["amount"].sum(),
-            "avg_amount": df["amount"].mean(),
-            "min_amount": df["amount"].min(),
-            "max_amount": df["amount"].max(),
-            "payments": [Payment(**row) for _, row in df.iterrows()],
-        }
-        return cls(**data)
+    @property
+    def payments(self) -> Query:
+        return Payment.select(self._driver).where(recipient_id=self.id)
 
 
-class Scheme(BaseModel):
+class Scheme(BaseORM, BaseModel):
+    _lookup_field = "scheme"
+    _query_cls = SchemeQuery
+
     scheme: str
     years: List[int]
     countries: List[str]
     total_payments: int
     total_recipients: int
-    sum_amount: float
-    avg_amount: float
-    max_amount: float
-    min_amount: float
-    recipients: Optional[List[Recipient]] = []
+    amount_sum: float
+    amount_avg: float
+    amount_max: float
+    amount_min: float
 
-    @classmethod
-    def get(cls, scheme: str, driver: Optional[Driver] = current_driver) -> "Scheme":
-        """return `Scheme` with `scheme` including all recipients and their payments"""
-        df = driver.select(scheme=scheme)
-        return cls._aggregate(df, scheme)
+    class Config:
+        extra = "allow"
 
-    @classmethod
-    def select(
-        cls, driver: Optional[Driver] = current_driver, **filters
-    ) -> List["Scheme"]:
-        """return generator of `Scheme` instances"""
-        df = driver.select_schemes(**filters)
-        for _, row in df.iterrows():
-            yield cls(**row)
+    @property
+    def recipients(self) -> RecipientQuery:
+        return Recipient.select(self._driver).where(scheme=self.scheme)
 
-    @classmethod
-    def _aggregate(cls, df, scheme) -> "Scheme":
-        recipients = []
-        for recipient_id in df["recipient_id"].unique():
-            _df = df[df["recipient_id"] == recipient_id]
-            recipients.append(Recipient._aggregate(_df, recipient_id))
-        data = {
-            "scheme": scheme,
-            "years": list(df["year"].unique()),
-            "countries": list(df["country"].unique()),
-            "total_payments": len(df),
-            "total_recipients": len(df["recipient_id"].unique()),
-            "sum_amount": df["amount"].sum(),
-            "avg_amount": df["amount"].mean(),
-            "min_amount": df["amount"].min(),
-            "max_amount": df["amount"].max(),
-            "recipients": recipients,
-        }
-        return cls(**data)
+    @property
+    def payments(self) -> Query:
+        return Payment.select(self._driver).where(scheme=self.scheme)
+
+
+class Country(BaseORM, BaseModel):
+    _lookup_field = "country"
+
+    country: str
+    total_recipients: int
+    total_payments: int
+    years: List[int]
+    amount_sum: float
+    amount_avg: float
+    amount_max: float
+    amount_min: float
+
+    class Config:
+        extra = "allow"
+
+    @property
+    def recipients(self) -> RecipientQuery:
+        return Recipient.select(self._driver).where(scheme=self.scheme)
+
+    @property
+    def payments(self) -> Query:
+        return Payment.select(self._driver).where(scheme=self.scheme)
+
+
+class Year(BaseORM, BaseModel):
+    _lookup_field = "year"
+
+    year: int
+    total_recipients: int
+    total_payments: int
+    countries: List[str]
+    amount_sum: float
+    amount_avg: float
+    amount_max: float
+    amount_min: float
+
+    @property
+    def recipients(self) -> RecipientQuery:
+        return Recipient.select(self._driver).where(scheme=self.scheme)
+
+    @property
+    def payments(self) -> Query:
+        return Payment.select(self._driver).where(scheme=self.scheme)

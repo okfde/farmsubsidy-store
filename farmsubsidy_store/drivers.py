@@ -1,3 +1,4 @@
+import logging
 from functools import lru_cache
 from typing import Iterable, Optional
 
@@ -7,7 +8,7 @@ from clickhouse_driver import Client
 
 from . import enums, settings
 from .exceptions import ImproperlyConfigured
-from .query import Query, RecipientListQuery, SchemeListQuery
+from .query import Query
 
 
 # don't show clickhouse numpy warnings:
@@ -60,19 +61,8 @@ class Driver:
     def execute(self, *args, **kwargs):
         return self.conn.execute(*args, **kwargs)
 
-    def select(self, **filters) -> pd.DataFrame:
-        query = Query(self.driver, self.table, **filters)
-        return self.query(query)
-
-    def select_recipients(self, **filters) -> pd.DataFrame:
-        query = RecipientListQuery(self.driver, self.table, **filters)
-        if not filters:  # limit results
-            query = query.page()
-        return self.query(query)
-
-    def select_schemes(self, **filters) -> pd.DataFrame:
-        query = SchemeListQuery(self.driver, self.table, **filters)
-        return self.query(query)
+    def select(self, query_cls: Optional[Query] = Query, *args, **kwargs) -> Query:
+        return query_cls(driver=self, *args, **kwargs)
 
 
 class Clickhouse(Driver):
@@ -123,10 +113,13 @@ class Clickhouse(Driver):
 
     def query(self, query: Query) -> pd.DataFrame:
         query = str(query)
-        return self.conn.query_dataframe(query)  # noqa
+        return self.conn.query_dataframe(query)
 
 
 class Duckdb(Driver):
+    """this driver is not fully featured for specific queries. It is mainly
+    used for importing data and raw sql queries"""
+
     CREATE_TABLE = """
     CREATE TABLE {table}(
         pk                      CHAR(40) NOT NULL PRIMARY KEY,
@@ -200,4 +193,5 @@ def get_driver(
         return Duckdb(table, uri, read_only=read_only)
 
 
-current_driver = get_driver()
+# default driver based on ENV
+default_driver = get_driver()

@@ -5,14 +5,14 @@ import pandas as pd
 
 from . import settings
 from .aggregations import AGGREGATIONS
-from .drivers import get_driver, Driver, current_driver
+from .drivers import get_driver, Driver, default_driver
 from .logging import get_logger
 from .util import handle_error
 
 log = get_logger(__name__)
 
 
-def init(driver: Optional[Driver] = current_driver, recreate: Optional[bool] = False):
+def init(driver: Optional[Driver] = default_driver, recreate: Optional[bool] = False):
     try:
         driver.init(recreate=recreate)
     except Exception as e:
@@ -27,7 +27,7 @@ def init(driver: Optional[Driver] = current_driver, recreate: Optional[bool] = F
 
 def insert(
     df: pd.DataFrame,
-    driver: Optional[Driver] = current_driver,
+    driver: Optional[Driver] = default_driver,
     do_raise: Optional[bool] = True,
     fpath: Optional[str] = None,
 ) -> int:
@@ -38,7 +38,7 @@ def insert(
         handle_error(log, e, do_raise, fpath=fpath)
 
 
-def get_aggregations(driver: Optional[Driver] = current_driver):
+def get_aggregations(driver: Optional[Driver] = default_driver):
     """print some aggs"""
     data = {}
     for key, get_agg in AGGREGATIONS.items():
@@ -48,6 +48,7 @@ def get_aggregations(driver: Optional[Driver] = current_driver):
 
 
 def measure_time(query):
+    """for testing/debugging - it uses the default connection values"""
     for driver in settings.SUPPORTED_DRIVERS:
         _driver = get_driver(driver, settings.DEFAULT_DATABASE_URIS[driver])
         start = time.time()
