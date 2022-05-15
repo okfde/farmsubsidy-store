@@ -32,6 +32,7 @@ setup(
         "fingerprints",
         "flask-restful",
         "followthemoney",
+        "furl",
         "matplotlib",
         "pandas",
         "pydantic",
