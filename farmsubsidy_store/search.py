@@ -4,6 +4,7 @@ import fingerprints
 
 from .exceptions import InvalidSearch
 from .model import Recipient, Scheme
+from .views import BaseParams, RecipientListView, SchemeListView
 from .query import Query
 
 
@@ -38,3 +39,34 @@ class RecipientNameSearch(Search):
 class SchemeSearch(Search):
     model = Scheme
     field = "scheme"
+
+
+# search views
+
+
+class SearchParams(BaseParams):
+    q: str
+
+
+class BaseSearchView:
+    params_cls = SearchParams
+    search_cls = None
+
+    def apply_params(self, **params):
+        params = super().apply_params(**params)
+        self.q = params.pop("q")
+        return params
+
+    def get_query(self):
+        base_query = super().get_query()
+        s = self.search_cls(self.q, base_query)
+        start, end = self.get_slice(self.page, self.limit)
+        return s.query()[start:end]
+
+
+class RecipientSearchView(BaseSearchView, RecipientListView):
+    search_cls = RecipientNameSearch
+
+
+class SchemeSearchView(BaseSearchView, SchemeListView):
+    search_cls = SchemeSearch
