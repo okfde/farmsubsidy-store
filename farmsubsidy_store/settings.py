@@ -30,4 +30,4 @@ else:
 
 DATABASE_TABLE = get_env("DATABASE_TABLE", "farmsubsidy")
 LOG_LEVEL = get_env("LOG_LEVEL", "warning")
-LRU_QUERY_CACHE_SIZE = 1024 * 1000  # 1GB
+LRU_QUERY_CACHE_SIZE = 1024 * 1000  # 1MB

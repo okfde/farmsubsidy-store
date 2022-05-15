@@ -3,6 +3,7 @@ from flask_restful import Api, Resource
 from furl import furl
 
 from farmsubsidy_store import search, views
+from farmsubsidy_store.settings import get_env
 
 
 class ApiView(views.BaseListView, Resource):
@@ -41,4 +42,4 @@ api.add_resource(get_api_view(views.YearListView), "/years")
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=get_env("FLASK_DEBUG", 0) == "1")
