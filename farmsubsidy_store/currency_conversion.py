@@ -1,7 +1,7 @@
 import json
 import os
 
-from .exceptions import InvalidCountry
+from .exceptions import ImproperlyConfigured, InvalidCountry
 
 CURRENCY_LOOKUP = {
     "AT": "ATS",
@@ -39,11 +39,16 @@ CURRENCY_LOOKUP = {
 CURRENCIES = list(CURRENCY_LOOKUP.values()) + ["EUR"]
 
 
-with open(os.path.join(os.path.dirname(__file__), "currency_rates.json")) as f:
-    CACHED_RATES = {tuple(k.split("|")): v for k, v in json.load(f).items()}
+try:
+    with open(os.path.join(os.path.dirname(__file__), "currency_rates.json")) as f:
+        CACHED_RATES = {tuple(k.split("|")): v for k, v in json.load(f).items()}
+except FileNotFoundError:
+    CACHED_RATES = {}
 
 
 def convert_to_euro(country: str, year: str, amount: float):
+    if not CACHED_RATES:
+        raise ImproperlyConfigured("currency_rates.json not found")
     try:
         currency = CURRENCY_LOOKUP[country]
     except KeyError:

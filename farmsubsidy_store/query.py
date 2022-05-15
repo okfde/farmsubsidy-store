@@ -1,10 +1,16 @@
-from banal import is_listish
-from typing import Any, Iterable, Iterator, Optional
+from functools import cached_property, lru_cache
+from typing import Any, Iterable, Iterator, Optional, Union
 
 import pandas as pd
+from banal import is_listish
 
 from . import settings
 from .exceptions import InvalidQuery
+
+
+@lru_cache(settings.LRU_QUERY_CACHE_SIZE)
+def _get_cached_query(driver, query: str) -> pd.DataFrame:
+    return driver.query(query)
 
 
 class Query:
@@ -57,16 +63,38 @@ class Query:
     def __str__(self) -> str:
         return self.get_query()
 
+    def __bool__(self) -> bool:
+        for x in self:
+            return True
+        return False
+
     def __iter__(self) -> Iterator[Any]:
-        df = self.execute()
-        for _, row in df.iterrows():
+        for _, row in self.df.iterrows():
             yield self.apply_result(row)
 
-    def execute(self) -> pd.DataFrame:
+    @cached_property
+    def df(self) -> pd.DataFrame:
+        return self.execute()
+
+    @cached_property
+    def count(self):
+        """get an optimized query for count()"""
+        # FIXME this doesn't cover aggregated cases for `having`
+        count_part = "*"
+        if self.group_by_fields:
+            count_part = f"DISTINCT {', '.join(self.group_by_fields)}"
+        query = (
+            f"SELECT count({count_part}) as count FROM {self.table}{self.where_part}"
+        )
+        df = self.execute(query)
+        return int(df["count"][0])
+
+    def execute(self, query: Optional[Union["Query", str]] = None) -> pd.DataFrame:
         """actually return results from `self.driver`"""
         if self.driver is None:
             raise InvalidQuery("No driver for this query.")
-        return self.driver.query(self.get_query())
+        query = query or self.get_query()
+        return _get_cached_query(self.driver, str(query))
 
     def apply_result(self, row) -> Any:
         if self.result_cls is not None:
@@ -82,6 +110,7 @@ class Query:
     def _chain(self, **kwargs):
         # merge current state
         new_kwargs = self.__dict__.copy()
+        new_kwargs.pop("df", None)  # FIXME
         for key, new_value in kwargs.items():
             old_value = new_kwargs[key]
             if old_value is None:
@@ -236,7 +265,7 @@ class RecipientQuery(Query):
         """this is a bit hacky as we execute 2 queries here, as the string
         aggregation is expensive and we only do it over the already filtered
         result subset"""
-        df = self.execute()
+        df = self.df
         if len(df):
             outer = _RecipientOuterQuery(driver=self.driver).where(
                 recipient_id__in=df["recipient_id"].to_list()

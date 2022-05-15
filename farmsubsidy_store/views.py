@@ -71,10 +71,10 @@ class BaseListView:
     params_cls = BaseParams
 
     def get_results(self, **params):
-        self.params = self.apply_params(**params)
-        query = self.get_query()
-        self.data = list(query)
-        self.has_next = len(self.data) >= self.limit
+        self.apply_params(**params)
+        self.query = self.get_query()
+        self.data = list(self.query)
+        self.has_next = self.query.count >= self.limit
         self.has_prev = self.page > 1
         return self.data
 
@@ -89,6 +89,7 @@ class BaseListView:
         self.page = params.pop("p", 1)
         self.order_by = params.pop("order_by", None)
         self.limit = min(self.max_limit, params.pop("limit", self.max_limit))
+        self.params = params
         return params
 
     def validate_params(self, **params) -> dict:

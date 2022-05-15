@@ -42,6 +42,9 @@ class Payment(BaseORM, BaseModel):
     amount_original: Optional[float] = None
     currency_original: Optional[str] = None
 
+    def __str__(self):
+        return f"{self.country}-{self.year}-{self.pk}"
+
     def get_recipient(self) -> "Recipient":
         return Recipient.get(self.recipient_id)
 
@@ -73,6 +76,9 @@ class Recipient(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
+    def __str__(self):
+        return "; ".join(self.name)
+
     def get_payments(self) -> Query:
         return Payment.select().where(recipient_id=self.id)
 
@@ -100,6 +106,9 @@ class Scheme(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
+    def __str__(self):
+        return self.scheme
+
     def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(scheme=self.scheme)
 
@@ -126,6 +135,9 @@ class Country(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
+    def __str__(self):
+        return self.country
+
     def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(country=self.country)
 
@@ -151,6 +163,9 @@ class Year(BaseORM, BaseModel):
     amount_avg: float
     amount_max: float
     amount_min: float
+
+    def __str__(self):
+        return str(self.year)
 
     def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(year=self.year)

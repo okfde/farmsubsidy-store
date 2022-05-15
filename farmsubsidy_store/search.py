@@ -45,7 +45,7 @@ class SchemeSearch(Search):
 
 
 class SearchParams(BaseParams):
-    q: str
+    q: Optional[str] = None
 
 
 class BaseSearchView:
@@ -54,11 +54,13 @@ class BaseSearchView:
 
     def apply_params(self, **params):
         params = super().apply_params(**params)
-        self.q = params.pop("q")
+        self.q = params.pop("q", None)
         return params
 
     def get_query(self):
         base_query = super().get_query()
+        if self.q is None:
+            return base_query
         s = self.search_cls(self.q, base_query)
         start, end = self.get_slice(self.page, self.limit)
         return s.query()[start:end]

@@ -16,7 +16,7 @@ class ApiView(views.BaseListView, Resource):
         self.get_results(**request.args)
         return {
             "page": self.page,
-            "item_count": len(self.data),
+            "item_count": self.query.count,
             "next_url": self.get_page_url(1) if self.has_next else None,
             "prev_url": self.get_page_url(-1) if self.has_prev else None,
             "results": [i.dict() for i in self.data],
