@@ -27,6 +27,7 @@ setup(
     install_requires=[
         "banal",
         "Click",
+        "clickhouse-driver",
         "countrynames",
         "duckdb",
         "fingerprints",
