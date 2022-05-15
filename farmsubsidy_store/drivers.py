@@ -24,7 +24,10 @@ def _get_connection(
     if driver not in settings.SUPPORTED_DRIVERS:
         raise ImproperlyConfigured(f"Not a supported DB driver: `{driver}`")
     if driver == "clickhouse":
-        return Client(host=uri, settings={"use_numpy": True})
+        host, *port = uri.split(":")
+        if not port:
+            port = [9000]
+        return Client(settings={"use_numpy": True}, host=host, port=port[0])
     if driver == "duckdb":
         return duckdb.connect(uri, read_only=read_only)
 
