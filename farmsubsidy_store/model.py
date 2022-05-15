@@ -73,20 +73,16 @@ class Recipient(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
-    @property
-    def payments(self) -> Query:
+    def get_payments(self) -> Query:
         return Payment.select().where(recipient_id=self.id)
 
-    @property
-    def schemes(self) -> Query:
+    def get_schemes(self) -> Query:
         return Scheme.select().where(recipient_id=self.id)
 
-    @property
-    def years(self) -> Query:
+    def get_years(self) -> Query:
         return Year.select().where(recipient_id=self.id)
 
-    @property
-    def countries(self) -> Query:
+    def get_countries(self) -> Query:
         return Country.select().where(recipient_id=self.id)
 
 
@@ -104,20 +100,16 @@ class Scheme(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
-    @property
-    def recipients(self) -> RecipientQuery:
+    def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(scheme=self.scheme)
 
-    @property
-    def payments(self) -> Query:
+    def get_payments(self) -> Query:
         return Payment.select().where(scheme=self.scheme)
 
-    @property
-    def years(self) -> Query:
+    def get_years(self) -> Query:
         return Year.select().where(scheme=self.scheme)
 
-    @property
-    def countries(self) -> Query:
+    def get_countries(self) -> Query:
         return Country.select().where(scheme=self.scheme)
 
 
@@ -134,20 +126,16 @@ class Country(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
-    @property
-    def recipients(self) -> RecipientQuery:
+    def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(country=self.country)
 
-    @property
-    def payments(self) -> Query:
+    def get_payments(self) -> Query:
         return Payment.select().where(country=self.country)
 
-    @property
-    def schemes(self) -> Query:
+    def get_schemes(self) -> Query:
         return Scheme.select().where(country=self.country)
 
-    @property
-    def years(self) -> Query:
+    def get_years(self) -> Query:
         return Year.select().where(country=self.country)
 
 
@@ -164,18 +152,14 @@ class Year(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
-    @property
-    def recipients(self) -> RecipientQuery:
+    def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(year=self.year)
 
-    @property
-    def payments(self) -> Query:
+    def get_payments(self) -> Query:
         return Payment.select().where(year=self.year)
 
-    @property
-    def schemes(self) -> Query:
+    def get_schemes(self) -> Query:
         return Scheme.select().where(year=self.year)
 
-    @property
-    def countries(self) -> Query:
+    def get_countries(self) -> Query:
         return Country.select().where(year=self.year)

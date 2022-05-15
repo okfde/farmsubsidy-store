@@ -55,20 +55,37 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
     def test_clickhouse_model_recipient_detail(self):
         recipient = Recipient.get("20e1978de9f56d8d39ee78315b83339cf9c6e620")
         self.assertIsInstance(recipient, Recipient)
-        self.assertIsInstance(recipient.payments, Query)
-        payments = list(recipient.payments)
+        self.assertDictEqual(
+            recipient.dict(),
+            {
+                "id": "20e1978de9f56d8d39ee78315b83339cf9c6e620",
+                "name": ["LUC HOFFMANN"],
+                "address": ["(B) Burg-Reuland  "],
+                "country": ["LU"],
+                "url": [],
+                "years": [2019],
+                "total_payments": 3,
+                "amount_sum": 4294.58,
+                "amount_avg": 1431.5266666666666,
+                "amount_max": 3461.15,
+                "amount_min": 29.15,
+            },
+        )
+
+        self.assertIsInstance(recipient.get_payments(), Query)
+        payments = list(recipient.get_payments())
         self.assertEqual(len(payments), 3)
         self.assertEqual(recipient.amount_sum, 4294.58)
         self.assertEqual(recipient.total_payments, 3)
         self.assertEqual(recipient.name, ["LUC HOFFMANN"])
         self.assertEqual(recipient.country, ["LU"])
-        payments = list(recipient.payments.where(amount__gt=1000))
+        payments = list(recipient.get_payments().where(amount__gt=1000))
         self.assertEqual(len(payments), 1)
 
-        self.assertIsInstance(recipient.payments, Query)
-        self.assertIsInstance(recipient.schemes, SchemeQuery)
-        self.assertIsInstance(recipient.years, YearQuery)
-        self.assertIsInstance(recipient.countries, CountryQuery)
+        self.assertIsInstance(recipient.get_payments(), Query)
+        self.assertIsInstance(recipient.get_schemes(), SchemeQuery)
+        self.assertIsInstance(recipient.get_years(), YearQuery)
+        self.assertIsInstance(recipient.get_countries(), CountryQuery)
 
     def test_clickhouse_model_recipient_list(self):
         self.assertIsInstance(Recipient.select(), RecipientQuery)
@@ -103,7 +120,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         actual_payments = 0
         for recipient in Recipient.select().where(country="LU"):
             recipients_payments += recipient.total_payments
-            actual_payments += len(list(recipient.payments))
+            actual_payments += len(list(recipient.get_payments()))
 
         self.assertEqual(total_payments, recipients_payments)
         self.assertEqual(total_payments, actual_payments)
@@ -114,16 +131,31 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         self.assertEqual(scheme.total_payments, 1206)
         self.assertEqual(scheme.total_recipients, 1204)
 
-        self.assertIsInstance(scheme.payments, Query)
-        self.assertEqual(len(list(scheme.payments)), scheme.total_payments)
+        self.assertDictEqual(
+            scheme.dict(),
+            {
+                "scheme": "IV/A.18",
+                "years": [2019],
+                "countries": ["LU"],
+                "total_payments": 1206,
+                "total_recipients": 1204,
+                "amount_sum": 13384487.96,
+                "amount_avg": 11098.24872305141,
+                "amount_max": 54243.39,
+                "amount_min": 270.16,
+            },
+        )
 
-        self.assertIsInstance(scheme.recipients, RecipientQuery)
-        self.assertEqual(len(list(scheme.recipients)), scheme.total_recipients)
+        self.assertIsInstance(scheme.get_payments(), Query)
+        self.assertEqual(len(list(scheme.get_payments())), scheme.total_payments)
 
-        self.assertIsInstance(scheme.payments, Query)
-        self.assertIsInstance(scheme.recipients, RecipientQuery)
-        self.assertIsInstance(scheme.years, YearQuery)
-        self.assertIsInstance(scheme.countries, CountryQuery)
+        self.assertIsInstance(scheme.get_recipients(), RecipientQuery)
+        self.assertEqual(len(list(scheme.get_recipients())), scheme.total_recipients)
+
+        self.assertIsInstance(scheme.get_payments(), Query)
+        self.assertIsInstance(scheme.get_recipients(), RecipientQuery)
+        self.assertIsInstance(scheme.get_years(), YearQuery)
+        self.assertIsInstance(scheme.get_countries(), CountryQuery)
 
     def test_clickhouse_model_scheme_list(self):
         self.assertIsInstance(Scheme.select(), SchemeQuery)
@@ -145,6 +177,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             country.dict(),
             {
                 "country": "LU",
+                "years": [2019],
                 "total_recipients": 1683,
                 "total_payments": 7718,
                 "amount_sum": 80915089.85,
@@ -154,10 +187,10 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             },
         )
 
-        self.assertIsInstance(country.payments, Query)
-        self.assertIsInstance(country.recipients, RecipientQuery)
-        self.assertIsInstance(country.schemes, SchemeQuery)
-        self.assertIsInstance(country.years, YearQuery)
+        self.assertIsInstance(country.get_payments(), Query)
+        self.assertIsInstance(country.get_recipients(), RecipientQuery)
+        self.assertIsInstance(country.get_schemes(), SchemeQuery)
+        self.assertIsInstance(country.get_years(), YearQuery)
 
     def test_clickhouse_model_country_list(self):
         self.assertIsInstance(Country.select(), CountryQuery)
@@ -176,6 +209,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             year.dict(),
             {
                 "year": 2019,
+                "countries": ["LU"],
                 "total_recipients": 1683,
                 "total_payments": 7718,
                 "amount_sum": 80915089.85,
@@ -185,10 +219,10 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             },
         )
 
-        self.assertIsInstance(year.payments, Query)
-        self.assertIsInstance(year.recipients, RecipientQuery)
-        self.assertIsInstance(year.schemes, SchemeQuery)
-        self.assertIsInstance(year.countries, CountryQuery)
+        self.assertIsInstance(year.get_payments(), Query)
+        self.assertIsInstance(year.get_recipients(), RecipientQuery)
+        self.assertIsInstance(year.get_schemes(), SchemeQuery)
+        self.assertIsInstance(year.get_countries(), CountryQuery)
 
     def test_clickhouse_model_year_list(self):
         self.assertIsInstance(Year.select(), YearQuery)
@@ -204,11 +238,11 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         # this is more for data integrity test than functional (which is covered above)
 
         models = (
-            (Payment, "payments"),
-            (Recipient, "recipients"),
-            (Scheme, "schemes"),
-            (Year, "years"),
-            (Country, "countries"),
+            (Payment, "get_payments"),
+            (Recipient, "get_recipients"),
+            (Scheme, "get_schemes"),
+            (Year, "get_years"),
+            (Country, "get_countries"),
         )
 
         def _test(cls, value, field=None):
@@ -217,7 +251,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             for model, getter in models:
                 if model != cls:
                     self.assertEqual(
-                        len(list(getattr(instance, getter))),
+                        len(list(getattr(instance, getter)())),
                         len(list(model.select().where(**{field: value}))),
                     )
 

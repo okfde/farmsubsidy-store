@@ -233,6 +233,9 @@ class RecipientQuery(Query):
     order_by_fields = ("recipient_id",)
 
     def __iter__(self):
+        """this is a bit hacky as we execute 2 queries here, as the string
+        aggregation is expensive and we only do it over the already filtered
+        result subset"""
         df = self.execute()
         if len(df):
             outer = _RecipientOuterQuery(driver=self.driver).where(

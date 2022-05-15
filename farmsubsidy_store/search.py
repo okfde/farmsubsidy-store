@@ -1,3 +1,5 @@
+from typing import Optional
+
 import fingerprints
 
 from .exceptions import InvalidSearch
@@ -9,9 +11,9 @@ class Search:
     field = None
     model = None
 
-    def __init__(self, q, **filters):
+    def __init__(self, q: str, base_query: Optional[Query] = None):
         self.q = q
-        self.filters = filters
+        self.base_query = base_query
 
     def get_search_string(self) -> str:
         return self.q.strip()
@@ -20,15 +22,16 @@ class Search:
         q = self.get_search_string()
         if not q:
             raise InvalidSearch("Search string is empty")
-        where = {**{f"{self.field}__ilike": f"%{q}%"}, **self.filters}
-        return self.model.select().where(**where)
+        query = self.base_query or self.model.select()
+        search = {f"{self.field}__ilike": f"%{q}%"}
+        return query.where(**search)
 
 
 class RecipientNameSearch(Search):
     model = Recipient
     field = "recipient_fingerprint"
 
-    def get_search_string(self):
+    def get_search_string(self) -> str:
         return fingerprints.generate(self.q)
 
 
