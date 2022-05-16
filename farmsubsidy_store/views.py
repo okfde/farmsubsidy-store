@@ -125,7 +125,12 @@ class BaseListView:
 
     @property
     def where_params(self) -> dict:
-        return {k: v for k, v in self.params.items() if k in BASE_LOOKUPS}
+        params = {}
+        for k, v in self.params.items():
+            for field in BASE_LOOKUPS:
+                if k.startswith(field):
+                    params[k] = v
+        return params
 
     @property
     def having_params(self) -> dict:
