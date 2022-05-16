@@ -7,8 +7,8 @@ from farmsubsidy_store.search import RecipientNameSearch, SchemeSearch
 class ClikhouseSearchTestCase(ClickhouseTestCase):
     def test_clickhouse_search_recipients(self):
         s = RecipientNameSearch("ANDY BRISBOIS")
-        res = s.query()
-        res = list(res)
+        query = s.get_query()
+        res = list(query)
         self.assertEqual(len(res), 1)
         res = res[0]
         self.assertDictEqual(
@@ -30,7 +30,7 @@ class ClikhouseSearchTestCase(ClickhouseTestCase):
 
         # additional filter
         s = RecipientNameSearch("ANDY BRISBOIS")
-        res = s.query().where(year=2019)
+        res = s.get_query().where(year=2019)
         res = list(res)
         self.assertEqual(len(res), 1)
         res = res[0]
@@ -53,13 +53,13 @@ class ClikhouseSearchTestCase(ClickhouseTestCase):
 
         # no result
         s = RecipientNameSearch("ANDY BRISBOIS")
-        res = s.query().where(year=2018)
+        res = s.get_query().where(year=2018)
         res = list(res)
         self.assertEqual(len(res), 0)
 
     def test_clickhouse_search_scheme(self):
         s = SchemeSearch("IV/A.15")
-        res = s.query()
+        res = s.get_query()
         res = list(res)[0]
         self.assertDictEqual(
             res.dict(),
@@ -77,7 +77,7 @@ class ClikhouseSearchTestCase(ClickhouseTestCase):
         )
 
         s = SchemeSearch("IV/A.")
-        res = s.query()
+        res = s.get_query()
         res = list(res)
         self.assertEqual(len(res), 8)
         self.assertSetEqual(
@@ -97,18 +97,18 @@ class ClikhouseSearchTestCase(ClickhouseTestCase):
         )
 
         s = SchemeSearch("IV/A.15")
-        res = s.query()
+        res = s.get_query()
         res = list(res)
         self.assertEqual(len(res), 1)
 
         s = SchemeSearch("IV/A.15")
-        res = s.query().where(country="AT")
+        res = s.get_query().where(country="AT")
         res = list(res)
         self.assertEqual(len(res), 0)
 
     def test_clickhouse_search_invalid_q(self):
         with self.assertRaisesRegex(InvalidSearch, "empty"):
             s = RecipientNameSearch(" ")
-            next(s.query())
+            next(s.get_query())
             s = SchemeSearch(" ")
-            next(s.query())
+            next(s.get_query())

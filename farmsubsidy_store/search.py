@@ -13,16 +13,16 @@ class Search:
     model = None
 
     def __init__(self, q: str, base_query: Optional[Query] = None):
-        self.q = q
+        self.q = (q or "").strip()
+        if not self.q:
+            raise InvalidSearch("Search string is empty")
         self.base_query = base_query
 
     def get_search_string(self) -> str:
         return self.q.strip()
 
-    def query(self) -> Query:
+    def get_query(self) -> Query:
         q = self.get_search_string()
-        if not q:
-            raise InvalidSearch("Search string is empty")
         query = self.base_query or self.model.select()
         search = {f"{self.field}__ilike": f"%{q}%"}
         return query.where(**search)
@@ -55,6 +55,8 @@ class BaseSearchView:
     def apply_params(self, **params):
         params = super().apply_params(**params)
         self.q = params.pop("q", None)
+        if not self.q and not params:
+            raise InvalidSearch("Result too large. Please set search params")
         return params
 
     def get_query(self):
@@ -63,7 +65,7 @@ class BaseSearchView:
             return base_query
         s = self.search_cls(self.q, base_query)
         start, end = self.get_slice(self.page, self.limit)
-        return s.query()[start:end]
+        return s.get_query()[start:end]
 
 
 class RecipientSearchView(BaseSearchView, RecipientListView):

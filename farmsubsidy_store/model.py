@@ -76,6 +76,10 @@ class Recipient(BaseORM, BaseModel):
     amount_max: float
     amount_min: float
 
+    def __init__(self, **data):  # FIXME
+        data["country"] = data.pop("recipient_country")
+        super().__init__(**data)
+
     def __str__(self):
         return "; ".join(self.name)
 

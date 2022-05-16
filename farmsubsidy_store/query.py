@@ -63,18 +63,10 @@ class Query:
     def __str__(self) -> str:
         return self.get_query()
 
-    def __bool__(self) -> bool:
-        for x in self:
-            return True
-        return False
-
     def __iter__(self) -> Iterator[Any]:
-        for _, row in self.df.iterrows():
+        df = self.execute()
+        for _, row in df.iterrows():
             yield self.apply_result(row)
-
-    @cached_property
-    def df(self) -> pd.DataFrame:
-        return self.execute()
 
     @cached_property
     def count(self):
@@ -237,22 +229,14 @@ class Query:
         return q.strip()
 
 
-class _RecipientOuterQuery(Query):
-    fields = (
-        "recipient_id as id",
-        "groupUniqArray(year) as years",
-        "groupUniqArray(recipient_name) as name",
-        "groupUniqArray(recipient_country) as country",
-        "groupUniqArray(recipient_address) as address",
-    )
-    group_by_fields = ("recipient_id",)
-    order_by_fields = ("recipient_id",)
-
-
 class RecipientQuery(Query):
     fields = (
-        "recipient_id",
+        "recipient_id as id",
         "count(*) as total_payments",
+        "groupUniqArray(year) as years",
+        "groupUniqArray(recipient_name) as name",
+        "groupUniqArray(recipient_country) as recipient_country",
+        "groupUniqArray(recipient_address) as address",
         "sum(amount) as amount_sum",
         "avg(amount) as amount_avg",
         "max(amount) as amount_max",
@@ -260,20 +244,6 @@ class RecipientQuery(Query):
     )
     group_by_fields = ("recipient_id",)
     order_by_fields = ("recipient_id",)
-
-    def __iter__(self):
-        """this is a bit hacky as we execute 2 queries here, as the string
-        aggregation is expensive and we only do it over the already filtered
-        result subset"""
-        df = self.df
-        if len(df):
-            outer = _RecipientOuterQuery(driver=self.driver).where(
-                recipient_id__in=df["recipient_id"].to_list()
-            )
-            df_outer = outer.execute()
-            df = df.merge(df_outer, left_on="recipient_id", right_on="id")
-        for _, row in df.iterrows():
-            yield self.apply_result(row)
 
 
 class SchemeQuery(Query):
