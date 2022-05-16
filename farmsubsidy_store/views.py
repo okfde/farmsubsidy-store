@@ -7,6 +7,7 @@ from banal import clean_dict
 from pydantic import BaseModel, create_model, validator
 
 from farmsubsidy_store.model import Country, Payment, Recipient, Scheme, Year
+from farmsubsidy_store.query import Query
 
 STRING_COMPARATORS = ("like", "ilike")
 NUMERIC_COMPARATORS = ("gt", "gte", "lt", "lte")
@@ -71,8 +72,7 @@ class BaseListView:
     params_cls = BaseParams
 
     def get_results(self, **params):
-        self.apply_params(**params)
-        self.query = self.get_query()
+        self.query = self.get_query(**params)
         self.data = list(self.query)
         self.has_next = self.query.count >= self.limit
         self.has_prev = self.page > 1
@@ -109,8 +109,9 @@ class BaseListView:
         end = start + limit
         return start, end
 
-    def get_query(self):
-        query = (
+    def get_query(self, base_query: Optional[Query] = None, **params):
+        self.apply_params(**params)
+        query = base_query or (
             self.model.select().where(**self.where_params).having(**self.having_params)
         )
         order_by = self.order_by

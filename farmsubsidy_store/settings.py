@@ -31,3 +31,9 @@ else:
 DATABASE_TABLE = get_env("DATABASE_TABLE", "farmsubsidy")
 LOG_LEVEL = get_env("LOG_LEVEL", "warning")
 LRU_QUERY_CACHE_SIZE = 1024 * 1000  # 1MB
+
+
+API_CACHE_TYPE = get_env("FS_API_CACHE_TYPE", "NullCache")
+API_CACHE_DEFAULT_TIMEOUT = get_env("FS_API_CACHE_DEFAULT_TIMEOUT", 60 * 60 * 24)
+FLASK_DEBUG = get_env("FLASK_DEBUG") == "1"
+REDIS_URL = get_env("REDIS_URL")

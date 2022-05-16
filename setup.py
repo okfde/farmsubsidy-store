@@ -30,6 +30,8 @@ setup(
         "clickhouse-driver",
         "countrynames",
         "duckdb",
+        "Flask",
+        "Flask-Caching",
         "fingerprints",
         "flask-restful",
         "followthemoney",
