@@ -77,7 +77,7 @@ class Recipient(BaseORM, BaseModel):
     amount_min: float
 
     def __init__(self, **data):  # FIXME
-        data["country"] = data.pop("recipient_country")
+        data["country"] = data.pop("recipient_country", data.get("country"))
         super().__init__(**data)
 
     def __str__(self):
