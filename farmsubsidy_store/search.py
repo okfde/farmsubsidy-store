@@ -59,8 +59,8 @@ class BaseSearchView:
             raise InvalidSearch("Result too large. Please set search params")
         return params
 
-    def get_query(self):
-        base_query = super().get_query()
+    def get_query(self, **params):
+        base_query = super().get_query(**params)
         if self.q is None:
             return base_query
         s = self.search_cls(self.q, base_query)
