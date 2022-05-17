@@ -40,6 +40,8 @@ setup(
         "pandas",
         "pydantic",
         "pyicu",
+        "redis",
+        "hiredis",
         "structlog",
     ],
     entry_points={

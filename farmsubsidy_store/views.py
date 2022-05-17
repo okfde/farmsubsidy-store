@@ -6,7 +6,14 @@ from typing import Iterator, Optional, Tuple
 from banal import clean_dict
 from pydantic import BaseModel, create_model, validator
 
-from farmsubsidy_store.model import Country, Payment, Recipient, Scheme, Year
+from farmsubsidy_store.model import (
+    Country,
+    Payment,
+    Recipient,
+    RecipientBase,
+    Scheme,
+    Year,
+)
 from farmsubsidy_store.query import Query
 
 STRING_COMPARATORS = ("like", "ilike")
@@ -72,6 +79,7 @@ class BaseListView:
     params_cls = BaseParams
 
     def get_results(self, **params):
+        self.apply_params(**params)
         self.query = self.get_query(**params)
         self.data = list(self.query)
         self.has_next = self.query.count >= self.limit
@@ -109,9 +117,10 @@ class BaseListView:
         end = start + limit
         return start, end
 
-    def get_query(self, base_query: Optional[Query] = None, **params):
-        self.apply_params(**params)
-        query = base_query or (
+    def get_query(self, **params) -> Query:
+        if not hasattr(self, "params"):
+            self.apply_params(**params)
+        query = (
             self.model.select().where(**self.where_params).having(**self.having_params)
         )
         order_by = self.order_by
@@ -151,6 +160,16 @@ class RecipientListView(BaseListView):
     order_by = AGGREGATED_ORDER_BY
     lookups = AGGREGATED_LOOKUPS
     model = Recipient
+
+
+class RecipientBaseView(RecipientListView):
+    """improved query performance because no string aggregation happens),
+    useful for "get top 5 of country X" but accepts the same parameters as the
+    big list view, so sorting for schemes or searching for names/fingerprints
+    is still possible!
+    """
+
+    model = RecipientBase
 
 
 class SchemeListView(BaseListView):

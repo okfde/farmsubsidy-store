@@ -1,9 +1,13 @@
 from flask import Flask, request
 from flask_caching import Cache
 from flask_restful import Api, Resource
+from followthemoney.util import make_entity_id as make_id
 from furl import furl
 
 from farmsubsidy_store import search, settings, views
+from farmsubsidy_store.logging import get_logger
+
+log = get_logger(__name__)
 
 
 cache = Cache(
@@ -24,10 +28,11 @@ class ApiView(views.BaseListView, Resource):
         return str(url)
 
     def get(self):
-        query = self.get_query()
-        cache_key = str(query)
+        query = self.get_query(**request.args)
+        cache_key = make_id(str(query))
         cached_results = cache.get(cache_key)
         if cached_results:
+            log.info(f"Cache hit for `{cache_key}`")
             return cached_results
 
         self.get_results(**request.args)
@@ -53,6 +58,7 @@ cache.init_app(app)
 
 api.add_resource(get_api_view(views.PaymentListView), "/payments")
 api.add_resource(get_api_view(views.RecipientListView), "/recipients")
+api.add_resource(get_api_view(views.RecipientBaseView), "/recipients_base")
 api.add_resource(get_api_view(search.RecipientSearchView), "/recipients/search")
 api.add_resource(get_api_view(views.SchemeListView), "/schemes")
 api.add_resource(get_api_view(search.SchemeSearchView), "/schemes/search")

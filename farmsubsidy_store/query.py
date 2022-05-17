@@ -246,6 +246,19 @@ class RecipientQuery(Query):
     order_by_fields = ("recipient_id",)
 
 
+class RecipientBaseQuery(RecipientQuery):
+    """simpler query without string aggregation"""
+
+    fields = (
+        "recipient_id as id",
+        "count(*) as total_payments",
+        "sum(amount) as amount_sum",
+        "avg(amount) as amount_avg",
+        "max(amount) as amount_max",
+        "min(amount) as amount_min",
+    )
+
+
 class SchemeQuery(Query):
     fields = (
         "scheme",

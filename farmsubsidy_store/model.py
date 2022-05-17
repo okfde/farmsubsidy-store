@@ -3,7 +3,14 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from .drivers import get_driver
-from .query import CountryQuery, Query, RecipientQuery, SchemeQuery, YearQuery
+from .query import (
+    CountryQuery,
+    Query,
+    RecipientBaseQuery,
+    RecipientQuery,
+    SchemeQuery,
+    YearQuery,
+)
 
 
 class BaseORM:
@@ -56,6 +63,18 @@ class Payment(BaseORM, BaseModel):
 
     def get_country(self) -> "Country":
         return Country.get(self.country)
+
+
+class RecipientBase(BaseORM, BaseModel):
+    _lookup_field = "recipient_id"
+    _query_cls = RecipientBaseQuery
+
+    id: str
+    total_payments: int
+    amount_sum: float
+    amount_avg: float
+    amount_max: float
+    amount_min: float
 
 
 class Recipient(BaseORM, BaseModel):
