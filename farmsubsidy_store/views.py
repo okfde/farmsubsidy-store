@@ -137,18 +137,18 @@ class BaseListView:
     def where_params(self) -> dict:
         params = {}
         for k, v in self.params.items():
-            for field in BASE_LOOKUPS:
-                if k.startswith(field):
-                    params[k] = v
+            base_k, *_ = k.split("__")
+            if base_k in BASE_LOOKUPS:
+                params[k] = v
         return params
 
     @property
     def having_params(self) -> dict:
         params = {}
         for k, v in self.params.items():
-            for field in AGGREGATION_FIELDS:
-                if k.startswith(field):
-                    params[k] = v
+            base_k, *_ = k.split("__")
+            if base_k in AGGREGATION_FIELDS:
+                params[k] = v
         return params
 
 
