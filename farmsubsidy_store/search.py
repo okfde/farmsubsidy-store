@@ -52,14 +52,14 @@ class BaseSearchView:
     params_cls = SearchParams
     search_cls = None
 
-    def apply_params(self, **params):
+    def apply_params(self, **params) -> dict:
         params = super().apply_params(**params)
         self.q = params.pop("q", None)
         if not self.q and not params:
             raise InvalidSearch("Result too large. Please set search params")
         return params
 
-    def get_query(self, **params):
+    def get_query(self, **params) -> Query:
         base_query = super().get_query(**params)
         if self.q is None:
             return base_query
@@ -71,6 +71,12 @@ class BaseSearchView:
 class RecipientSearchView(BaseSearchView, RecipientListView):
     search_cls = RecipientNameSearch
 
+    def get_initial_query(self) -> Query:
+        return super().get_initial_query().where(recipient_name__null=False)
+
 
 class SchemeSearchView(BaseSearchView, SchemeListView):
     search_cls = SchemeSearch
+
+    def get_initial_query(self) -> Query:
+        return super().get_initial_query().where(scheme_name__null=False)

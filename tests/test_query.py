@@ -123,6 +123,16 @@ class QueryTestCase(TestCase):
         q = Query().order_by("a").order_by("b")
         self.assertEqual(str(q), "SELECT * FROM farmsubsidy ORDER BY b ASC")
 
+    def test_query_null(self):
+        q = Query().where(recipient_name__null=True)
+        self.assertEqual(
+            str(q), "SELECT * FROM farmsubsidy WHERE recipient_name IS NULL"
+        )
+        q = Query().where(recipient_name__null=False)
+        self.assertEqual(
+            str(q), "SELECT * FROM farmsubsidy WHERE recipient_name IS NOT NULL"
+        )
+
     def test_query_invalid(self):
         with self.assertRaisesRegex(InvalidQuery, "must not be negative"):
             q = Query()[-1]

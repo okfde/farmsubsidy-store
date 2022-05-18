@@ -39,6 +39,7 @@ def cli(log_level):
 )
 @click.option("--year", type=int)
 @click.option("--country", type=str)
+@click.option("--currency", type=str)
 def db_clean(
     infile,
     outfile,
@@ -47,6 +48,7 @@ def db_clean(
     ignore_errors=False,
     year=None,
     country=None,
+    currency=None,
 ):
     """
     Apply data cleaning and currency conversion from `infile` to `outfile`
@@ -54,7 +56,9 @@ def db_clean(
     is_stream = infile.name == "<stdin>"
     if header is not None:
         header = header.split(",")
-    df = read_csv(infile, not ignore_errors, delimiter=delimiter, names=header)
+    df = read_csv(
+        infile, not ignore_errors, delimiter=delimiter, names=header, dtype=str
+    )
 
     # try to get year and country from filename
     if year is None or country is None:
@@ -64,11 +68,17 @@ def db_clean(
             country = country or _country
 
     df = clean.clean(
-        df, ignore_errors, year, country, fpath=infile.name if not is_stream else None
+        df,
+        ignore_errors,
+        year,
+        country,
+        currency,
+        fpath=infile.name if not is_stream else None,
     )
-    df.fillna("").to_csv(outfile, index=False)
-    if not is_stream:
-        log.info(f"Cleaned `{infile.name}`.", outfile=outfile.name)
+    if df is not None:
+        df.fillna("").to_csv(outfile, index=False)
+        if not is_stream:
+            log.info(f"Cleaned `{infile.name}`.", outfile=outfile.name)
 
 
 def _get_driver(obj, **kwargs):
@@ -131,7 +141,9 @@ def db_init(obj, recreate):
 @click.pass_obj
 def db_import(obj, infile, ignore_errors):
     driver = _get_driver(obj, read_only=False)
-    df = read_csv(infile)
+    # https://clickhouse-driver.readthedocs.io/en/latest/features.html#numpy-pandas-support
+    df = read_csv(infile, dtype=object)
+    df = df.applymap(lambda x: None if x == "" else x)
     res = db.insert(df, driver, not ignore_errors, infile.name)
     log.info(f"Inserted {res} rows.", db=settings.DATABASE_URI, infile=infile.name)
 

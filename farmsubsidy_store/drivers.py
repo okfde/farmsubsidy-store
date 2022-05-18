@@ -76,20 +76,20 @@ class Clickhouse(Driver):
         `country`                 {country} NOT NULL,
         `year`                    {year} NOT NULL,
         `recipient_id`            FixedString(40) NOT NULL,
-        `recipient_name`          String NOT NULL,
+        `recipient_name`          String NULL,
         `recipient_fingerprint`   String NOT NULL,
-        `recipient_address`       String,
+        `recipient_address`       String NULL,
         `recipient_country`       String NOT NULL,
-        `recipient_url`           String,
-        `scheme`                  String,
-        `scheme_code`             String,
-        `scheme_description`      String,
-        `amount`                  Decimal(18, 2) NOT NULL,
-        `currency`                {currency} NOT NULL,
-        `amount_original`         Decimal(18, 2),
-        `currency_original`       {currency}
+        `recipient_url`           String NULL,
+        `scheme`                  String NULL,
+        `scheme_code`             String NULL,
+        `scheme_description`      String NULL,
+        `amount`                  Decimal(18, 2) NULL,
+        `currency`                {currency} NULL,
+        `amount_original`         Decimal(18, 2) NULL,
+        `currency_original`       {currency} NULL
     ) ENGINE = MergeTree()
-    ORDER BY (country, year, recipient_fingerprint, recipient_id, amount)
+    ORDER BY (country, year, recipient_fingerprint, recipient_id)
     """
 
     def get_enum(self, values: Iterable[str]) -> str:

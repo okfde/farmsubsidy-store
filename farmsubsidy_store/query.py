@@ -2,7 +2,7 @@ from functools import cached_property, lru_cache
 from typing import Any, Iterable, Iterator, Optional, Union
 
 import pandas as pd
-from banal import is_listish
+from banal import is_listish, as_bool
 
 from . import settings
 from .exceptions import InvalidQuery
@@ -22,6 +22,7 @@ class Query:
         "lt": "<",
         "lte": "<=",
         "in": "IN",
+        "null": "IS",
     }
 
     fields = "*"
@@ -166,11 +167,15 @@ class Query:
                 operator = operator[0]
                 if operator not in self.OPERATORS:
                     raise InvalidQuery(f"Invalid operator: {operator}")
+
                 if operator == "in":
                     if not is_listish(value):
                         raise InvalidQuery(f"Invalid value for `IN` operator: {value}")
                     values = ", ".join([f"'{v}'" for v in value])
                     value = f"({values})"
+                elif operator == "null":
+                    # field__null=True|False
+                    value = "NULL" if as_bool(value) else "NOT NULL"
                 else:
                     value = f"'{value}'"
                 parts.append(" ".join((field, self.OPERATORS[operator], value)))

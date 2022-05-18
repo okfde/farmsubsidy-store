@@ -31,7 +31,7 @@ class ClickhouseTestCase(TestCase):
         driver = get_clickhouse_test_driver()
         driver.init()
         for fpath in cls.data:
-            df = read_csv(fpath)
+            df = read_csv(fpath, dtype=object)
             driver.insert(df)
 
     @classmethod

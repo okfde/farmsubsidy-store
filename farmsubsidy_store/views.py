@@ -16,8 +16,9 @@ from farmsubsidy_store.model import (
 )
 from farmsubsidy_store.query import Query
 
-STRING_COMPARATORS = ("like", "ilike")
-NUMERIC_COMPARATORS = ("gt", "gte", "lt", "lte")
+NULL = ("null",)
+STRING_COMPARATORS = NULL + ("like", "ilike")
+NUMERIC_COMPARATORS = NULL + ("gt", "gte", "lt", "lte")
 BASE_ORDER_BY = ("country", "year", "recipient_name", "scheme", "amount")
 BASE_LOOKUPS = {
     "country": STRING_COMPARATORS,
@@ -121,7 +122,9 @@ class BaseListView:
         if not hasattr(self, "params"):
             self.apply_params(**params)
         query = (
-            self.model.select().where(**self.where_params).having(**self.having_params)
+            self.get_initial_query()
+            .where(**self.where_params)
+            .having(**self.having_params)
         )
         order_by = self.order_by
         if order_by is not None:
@@ -132,6 +135,9 @@ class BaseListView:
             query = query.order_by(order_by, ascending=ascending)
         start, end = self.get_slice(self.page, self.limit)
         return query[start:end]
+
+    def get_initial_query(self) -> Query:
+        return self.model.select()
 
     @property
     def where_params(self) -> dict:

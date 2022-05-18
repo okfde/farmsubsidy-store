@@ -13,17 +13,17 @@ init:
 download:
 	mkdir -p $(DATA_ROOT)/src/latest
 	wget -4 -P $(DATA_ROOT)/src/latest/ -r -l1 -H -nd -N -np -A "gz" -e robots=off https://data.farmsubsidy.org/latest/
-	# mkdir -p $(DATA_ROOT)/src/flat
-	# wget -4 -P $(DATA_ROOT)/src/flat/ -r -l2 -H -nd -N -np -A "gz" -e robots=off https://data.farmsubsidy.org/Flat/
+	mkdir -p $(DATA_ROOT)/src/flat
+	wget -4 -P $(DATA_ROOT)/src/flat/ -r -l2 -H -nd -N -np -A "gz" -e robots=off https://data.farmsubsidy.org/Flat/
 
 clean:
-	mkdir -p $(DATA_ROOT)/cleaned
-	parallel "fscli clean -i {} --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/latest/*.gz
-	# parallel "fscli clean -i {} -h recipient_name,x1,recipient_street,recipient_postcode,recipient_city,amount,x2,scheme,year,country --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/flat/*.gz
+	# mkdir -p $(DATA_ROOT)/cleaned
+	# parallel "fscli clean -i {} --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/latest/*.gz
+	parallel "fscli clean -i {} -h recipient_name,recipient_street1,recipient_street2,recipient_postcode,recipient_city,amount,amount_original,scheme,year,country --ignore-errors | gzip > $(DATA_ROOT)/cleaned_flat/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/flat/*.gz
 
 import: init
 	@if [ "$(DRIVER)" = "clickhouse" ]; then \
-  		parallel fscli db import -i {} ::: $(DATA_ROOT)/cleaned/*.cleaned.csv.gz ; \
+  		parallel fscli db import --ignore-errors -i {} ::: $(DATA_ROOT)/cleaned/*.cleaned.csv.gz ; \
 	else \
   		find $(DATA_ROOT)/cleaned -type f -name "*.cleaned.csv.gz" -exec fscli db import -i {} \; ; \
 	fi

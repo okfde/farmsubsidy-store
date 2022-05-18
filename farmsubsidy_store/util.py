@@ -1,5 +1,5 @@
 import re
-from typing import Any, Iterable, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import pandas as pd
 from click import File
@@ -9,27 +9,14 @@ from .logging import get_logger
 log = get_logger(__name__)
 
 
-def handle_error(logger, e: Exception, do_raise: bool, **kwargs):
-    if do_raise:
-        raise e
-    logger.error(f"{e.__class__.__name__}: `{e}`", **kwargs)
-
-
-def get_context_from_filename(fname: str) -> Tuple[Union[str, None], Union[str, None]]:
-    m = re.match(r".*(?P<country>[a-z\D]{2})_(?P<year>[\d]{4})", fname)
-    if m:
-        return m.groups()
-    return None, None
-
-
 def read_csv(
-    infile: Union[File, str],  # FIXME
+    infile: Union[File, str],
     do_raise: Optional[bool] = True,
     fillna: Optional[Any] = "",
     delimiter: Optional[str] = ",",
-    names: Optional[Iterable[str]] = None,
+    **kwargs,
 ) -> pd.DataFrame:
-    read_kwargs = {"dtype": str, "on_bad_lines": "warn", "names": names}
+    read_kwargs = {**{"on_bad_lines": "warn"}, **kwargs}
     df = None
     if isinstance(infile, str):
         fname = infile
@@ -47,6 +34,13 @@ def read_csv(
         return df.fillna(fillna)
 
 
+def get_context_from_filename(fname: str) -> Tuple[Union[str, None], Union[str, None]]:
+    m = re.match(r".*(?P<country>[a-z\D]{2})_(?P<year>[\d]{4})", fname)
+    if m:
+        return m.groups()
+    return None, None
+
+
 def to_json(value):
     try:
         if int(value) == float(value):
@@ -54,3 +48,11 @@ def to_json(value):
         return float(value)
     except ValueError:
         return str(value)
+
+
+def handle_error(logger, e: Union[Exception, str], do_raise: bool, **kwargs):
+    if isinstance(e, str):
+        e = Exception(e)
+    if do_raise:
+        raise e
+    logger.error(f"{e.__class__.__name__}: `{e}`", **kwargs)

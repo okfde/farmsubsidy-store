@@ -1,6 +1,7 @@
 import os
 from unittest import TestCase
 
+from farmsubsidy_store import settings
 from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.util import read_csv
 
@@ -22,7 +23,7 @@ class ImportTestCase(TestCase):
             pass
 
     def _get_df(self, path):
-        return read_csv(os.path.join(self.fixtures, path))
+        return read_csv(os.path.join(self.fixtures, path), dtype=object)
 
     def _import(self, driver, uri):
         driver = get_driver(driver, uri=uri, table="farmsubsidy_test", read_only=False)
@@ -45,5 +46,5 @@ class ImportTestCase(TestCase):
             driver.insert(df)
 
     def test_clickhouse_import(self):
-        self._import("clickhouse", "localhost")
+        self._import("clickhouse", settings.DATABASE_URI)
         # FIXME check unique constraint
