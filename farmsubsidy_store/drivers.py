@@ -77,7 +77,7 @@ class Clickhouse(Driver):
         `year`                    {year} NOT NULL,
         `recipient_id`            FixedString(40) NOT NULL,
         `recipient_name`          String NULL,
-        `recipient_fingerprint`   String NOT NULL,
+        `recipient_fingerprint`   String NULL,
         `recipient_address`       String NULL,
         `recipient_country`       String NOT NULL,
         `recipient_url`           String NULL,
@@ -125,12 +125,12 @@ class Duckdb(Driver):
 
     CREATE_TABLE = """
     CREATE TABLE {table}(
-        pk                      CHAR(40) NOT NULL PRIMARY KEY,
+        pk                      CHAR(40) NOT NULL,
         country                 country NOT NULL,
         year                    year NOT NULL,
         recipient_id            CHAR(40) NOT NULL,
-        recipient_name          VARCHAR NOT NULL,
-        recipient_fingerprint   VARCHAR NOT NULL,
+        recipient_name          VARCHAR,
+        recipient_fingerprint   VARCHAR,
         recipient_address       VARCHAR,
         recipient_country       VARCHAR NOT NULL,
         recipient_url           VARCHAR,

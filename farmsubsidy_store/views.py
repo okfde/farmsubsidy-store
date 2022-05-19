@@ -1,54 +1,91 @@
 """Paginated model views that can be used for the api
 (see farmsubsidy_store.api) or third party apps"""
 
-from typing import Iterator, Optional, Tuple
+from enum import Enum
+from itertools import chain, product
+from typing import Iterable, Optional, Tuple, Union
 
 from banal import clean_dict
 from pydantic import BaseModel, create_model, validator
 
-from farmsubsidy_store.model import (
-    Country,
-    Payment,
-    Recipient,
-    RecipientBase,
-    Scheme,
-    Year,
-)
+from farmsubsidy_store import model as models
 from farmsubsidy_store.query import Query
 
-NULL = ("null",)
-STRING_COMPARATORS = NULL + ("like", "ilike")
-NUMERIC_COMPARATORS = NULL + ("gt", "gte", "lt", "lte")
-BASE_ORDER_BY = ("country", "year", "recipient_name", "scheme", "amount")
-BASE_LOOKUPS = {
-    "country": STRING_COMPARATORS,
-    "year": NUMERIC_COMPARATORS,
-    "recipient_id": [],  # only direct lookup
-    "recipient_name": STRING_COMPARATORS,
-    "recipient_fingerprint": STRING_COMPARATORS,
-    "recipient_address": STRING_COMPARATORS,
-    "scheme": STRING_COMPARATORS,
-    "scheme_code": STRING_COMPARATORS,
-    "scheme_description": STRING_COMPARATORS,
-    "amount": NUMERIC_COMPARATORS,
-}
-AGGREGATION_FIELDS = (
-    "amount_sum",
-    "amount_avg",
-    "amount_max",
-    "amount_min",
-    "total_payments",
-    "total_recipients",
+
+class NullLookup(BaseModel):
+    null: bool = None
+
+
+class StringLookups(NullLookup):
+    like: str = None
+    ilike: str = None
+
+
+class NumericLookups(NullLookup):
+    gt: int = None
+    gte: int = None
+    lt: int = None
+    lte: int = None
+
+
+class BaseFields(BaseModel):
+    country: StringLookups = None
+    year: NumericLookups = None
+    recipient_id: str = None
+    recipient_name: StringLookups = None
+    recipient_fingerprint: StringLookups = None
+    recipient_address: StringLookups = None
+    scheme: StringLookups = None
+    scheme_code: StringLookups = None
+    scheme_description: StringLookups = None
+    amount: NumericLookups = None
+
+
+class AggregatedFields(BaseModel):
+    amount_sum: NumericLookups = None
+    amount_avg: NumericLookups = None
+    amount_min: NumericLookups = None
+    amount_max: NumericLookups = None
+    total_payments: NumericLookups = None
+    total_recipients: NumericLookups = None
+
+
+def _create_model(
+    name: str, fields_model: Union[BaseFields, AggregatedFields]
+) -> BaseModel:
+    def _fields():
+        for field, lookups in fields_model.__fields__.items():
+            if lookups.type_ in (NumericLookups, StringLookups):
+                if lookups.type_ == NumericLookups:
+                    yield field, int
+                else:
+                    yield field, str
+                for lookup, lookup_type in lookups.type_.__fields__.items():
+                    yield f"{field}__{lookup}", lookup_type.type_
+            else:
+                yield field, str
+
+    return create_model(
+        name, **{field: (Optional[type_], None) for field, type_ in _fields()}
+    )
+
+
+def _get_enum(name: str, items: Iterable[str]) -> Enum:
+    # amount_sum: asc , -amount_sum: desc
+    return Enum(name, (("".join(x), "".join(x)) for x in product(("", "-"), items)))
+
+
+OrderBy = _get_enum("order_by", BaseFields.__fields__)
+AggregatedOrderBy = _get_enum(
+    "order_by", chain(BaseFields.__fields__, AggregatedFields.__fields__)
 )
-AGGREGATED_ORDER_BY = BASE_ORDER_BY + AGGREGATION_FIELDS
-AGGREGATED_LOOKUPS = {
-    **BASE_LOOKUPS,
-    **{f: NUMERIC_COMPARATORS for f in AGGREGATION_FIELDS},
-}
+
+BaseFields = _create_model("BaseFields", BaseFields)
+AggregatedFields = _create_model("AggregatedFields", AggregatedFields)
 
 
-class BaseParams(BaseModel):
-    order_by: Optional[str] = None
+class BaseViewParams(BaseFields):
+    order_by: Optional[OrderBy] = None
     limit: Optional[int] = None
     p: Optional[int] = 1
 
@@ -68,6 +105,10 @@ class BaseParams(BaseModel):
         extra = "forbid"
 
 
+class AggregatedViewParams(BaseViewParams, AggregatedFields):
+    order_by: Optional[AggregatedOrderBy] = None
+
+
 class BaseListView:
     """this is a bit weird implemented with all the setters on self, but here
     we don't know about a request object and don't want to initialize the class
@@ -75,9 +116,7 @@ class BaseListView:
 
     max_limit = 1000
     model = None
-    order_by = BASE_ORDER_BY
-    lookups = BASE_LOOKUPS
-    params_cls = BaseParams
+    params_cls = BaseViewParams
 
     def get_results(self, **params):
         self.apply_params(**params)
@@ -87,31 +126,14 @@ class BaseListView:
         self.has_prev = self.page > 1
         return self.data
 
-    def get_allowed_params(self) -> Iterator[str]:
-        for field, operators in self.lookups.items():
-            yield field
-            for operator in operators:
-                yield f"{field}__{operator}"
-
     def apply_params(self, **params) -> dict:
-        params = self.validate_params(**params)
+        params = self.params_cls(**params)
+        params = clean_dict(params.dict())
         self.page = params.pop("p", 1)
         self.order_by = params.pop("order_by", None)
         self.limit = min(self.max_limit, params.pop("limit", self.max_limit))
         self.params = params
         return params
-
-    def validate_params(self, **params) -> dict:
-        Params = create_model(
-            f"{self.__class__.__name__}Params",
-            __base__=self.params_cls,
-            **{k: (str, None) for k in self.get_allowed_params()},
-        )
-
-        params = Params(**params)
-        if params.order_by and params.order_by.lstrip("-") not in self.order_by:
-            raise ValueError(f"Order by field `{params.order_by}` invalid.")
-        return clean_dict(params.dict())
 
     def get_slice(self, page: int, limit: int) -> Tuple[int, int]:
         start = (page - 1) * limit
@@ -128,8 +150,9 @@ class BaseListView:
         )
         order_by = self.order_by
         if order_by is not None:
+            order_by = order_by.name
             ascending = True
-            if self.order_by.startswith("-"):
+            if order_by.startswith("-"):
                 order_by = order_by[1:]
                 ascending = False
             query = query.order_by(order_by, ascending=ascending)
@@ -143,8 +166,7 @@ class BaseListView:
     def where_params(self) -> dict:
         params = {}
         for k, v in self.params.items():
-            base_k, *_ = k.split("__")
-            if base_k in BASE_LOOKUPS:
+            if k in BaseFields.__fields__:
                 params[k] = v
         return params
 
@@ -152,20 +174,18 @@ class BaseListView:
     def having_params(self) -> dict:
         params = {}
         for k, v in self.params.items():
-            base_k, *_ = k.split("__")
-            if base_k in AGGREGATION_FIELDS:
+            if k in AggregatedFields.__fields__:
                 params[k] = v
         return params
 
 
 class PaymentListView(BaseListView):
-    model = Payment
+    model = models.Payment
 
 
 class RecipientListView(BaseListView):
-    order_by = AGGREGATED_ORDER_BY
-    lookups = AGGREGATED_LOOKUPS
-    model = Recipient
+    params_cls = AggregatedViewParams
+    model = models.Recipient
 
 
 class RecipientBaseView(RecipientListView):
@@ -175,22 +195,19 @@ class RecipientBaseView(RecipientListView):
     is still possible!
     """
 
-    model = RecipientBase
+    model = models.RecipientBase
 
 
 class SchemeListView(BaseListView):
-    order_by = AGGREGATED_ORDER_BY
-    lookups = AGGREGATED_LOOKUPS
-    model = Scheme
+    params_cls = AggregatedViewParams
+    model = models.Scheme
 
 
 class CountryListView(BaseListView):
-    order_by = AGGREGATED_ORDER_BY
-    lookups = AGGREGATED_LOOKUPS
-    model = Country
+    params_cls = AggregatedViewParams
+    model = models.Country
 
 
 class YearListView(BaseListView):
-    order_by = AGGREGATED_ORDER_BY
-    lookups = AGGREGATED_LOOKUPS
-    model = Year
+    params_cls = AggregatedViewParams
+    model = models.Year

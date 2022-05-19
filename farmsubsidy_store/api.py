@@ -41,6 +41,10 @@ class ApiView(views.BaseListView, Resource):
             "item_count": self.query.count,
             "next_url": self.get_page_url(1) if self.has_next else None,
             "prev_url": self.get_page_url(-1) if self.has_prev else None,
+            "schema": {
+                "model": self.model.schema(),
+                "params": self.params_cls.schema(),
+            },
             "results": [i.dict() for i in self.data],
         }
         cache.set(cache_key, results)

@@ -4,7 +4,7 @@ import fingerprints
 
 from .exceptions import InvalidSearch
 from .model import Recipient, Scheme
-from .views import BaseParams, RecipientListView, SchemeListView
+from .views import AggregatedViewParams, RecipientListView, SchemeListView
 from .query import Query
 
 
@@ -44,7 +44,7 @@ class SchemeSearch(Search):
 # search views
 
 
-class SearchParams(BaseParams):
+class SearchParams(AggregatedViewParams):
     q: Optional[str] = None
 
 
