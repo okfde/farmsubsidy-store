@@ -79,4 +79,4 @@ class SchemeSearchView(BaseSearchView, SchemeListView):
     search_cls = SchemeSearch
 
     def get_initial_query(self) -> Query:
-        return super().get_initial_query().where(scheme_name__null=False)
+        return super().get_initial_query().where(scheme__null=False)
