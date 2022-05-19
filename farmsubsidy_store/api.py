@@ -41,18 +41,71 @@ class ApiView(views.BaseListView, Resource):
             "item_count": self.query.count,
             "next_url": self.get_page_url(1) if self.has_next else None,
             "prev_url": self.get_page_url(-1) if self.has_prev else None,
-            "schema": {
-                "model": self.model.schema(),
-                "params": self.params_cls.schema(),
-            },
+            "schema": self.get_schema(),
             "results": [i.dict() for i in self.data],
         }
         cache.set(cache_key, results)
         return results
 
+    @classmethod
+    def get_schema(cls):
+        return {
+            "model": cls.model.schema(),
+            "params": cls.params_cls.schema(),
+        }
 
-def get_api_view(view_cls):
-    return type(f"{view_cls.__name__}ApiView", (view_cls, ApiView), {})
+
+class PaymentApiView(views.PaymentListView, ApiView):
+    endpoint = "/payments"
+
+
+class RecipientApiView(views.RecipientListView, ApiView):
+    endpoint = "/recipients"
+
+
+class RecipientBaseApiView(views.RecipientBaseView, ApiView):
+    endpoint = "/recipients/base"
+
+
+class RecipientSearchApiView(search.RecipientSearchView, ApiView):
+    endpoint = "/recipients/search"
+
+
+class SchemeApiView(views.SchemeListView, ApiView):
+    endpoint = "/schems"
+
+
+class SchemeSearchApiView(search.SchemeSearchView, ApiView):
+    endpoint = "/schemes/search"
+
+
+class CountryApiView(views.CountryListView, ApiView):
+    endpoint = "/countries"
+
+
+class YearApiView(views.YearListView, ApiView):
+    endpoint = "/years"
+
+
+API_VIEWS = (
+    PaymentApiView,
+    RecipientApiView,
+    RecipientBaseApiView,
+    RecipientSearchApiView,
+    SchemeApiView,
+    SchemeSearchApiView,
+    CountryApiView,
+    YearApiView,
+)
+
+
+class ApiSchemeView(Resource):
+    def get(self):
+        return {
+            "endpoints": [
+                {"url": cls.endpoint, "scheme": cls.get_schema()} for cls in API_VIEWS
+            ]
+        }
 
 
 app = Flask(__name__)
@@ -60,15 +113,10 @@ api = Api(app)
 cache.init_app(app)
 
 
-api.add_resource(get_api_view(views.PaymentListView), "/payments")
-api.add_resource(get_api_view(views.RecipientListView), "/recipients")
-api.add_resource(get_api_view(views.RecipientBaseView), "/recipients_base")
-api.add_resource(get_api_view(search.RecipientSearchView), "/recipients/search")
-api.add_resource(get_api_view(views.SchemeListView), "/schemes")
-api.add_resource(get_api_view(search.SchemeSearchView), "/schemes/search")
-api.add_resource(get_api_view(views.CountryListView), "/countries")
-api.add_resource(get_api_view(views.YearListView), "/years")
+api.add_resource(ApiSchemeView, "/")
 
+for view in API_VIEWS:
+    api.add_resource(view, view.endpoint)
 
 if __name__ == "__main__":
     app.run(debug=settings.FLASK_DEBUG)
