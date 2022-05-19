@@ -17,13 +17,7 @@ farmsubsidy:
               column: recipient_fingerprint
         payment:
           schema: Payment
-          key_literal: payment
-          keys:
-            - recipient_id
-            - country
-            - year
-            - scheme
-            - amount
+          id_column: pk
           properties:
             purpose:
               column: scheme
