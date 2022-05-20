@@ -205,10 +205,9 @@ def clean_recipient_id(row: pd.Series) -> str:
 @lru_cache(LRU)
 def _clean_recipient_address(full_address, *parts) -> str:
     parts = (p.strip() for p in parts if p is not None and p.strip())
-    if full_address is None:
+    if not full_address:
         return ", ".join(parts)
 
-    full_address = full_address.strip()
     parts = (p for p in parts if p not in full_address)
     return ", ".join([full_address, *parts])
 
