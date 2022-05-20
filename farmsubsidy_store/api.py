@@ -104,7 +104,7 @@ class YearApiView(views.YearListView, ApiView):
 @app.get(PaymentApiView.endpoint, response_model=PaymentApiView.get_response_model())
 async def payments(
     request: Request,
-    commons: PaymentApiView.get_params_cls() = Depends(PaymentApiView.get_params_cls()),
+    commons: PaymentApiView.get_params_cls() = Depends(),
 ):
     """
     Get a list of `Payment` object based on filters.
@@ -145,9 +145,7 @@ async def payments(
 )
 async def recipients(
     request: Request,
-    commons: RecipientApiView.get_params_cls() = Depends(
-        RecipientApiView.get_params_cls()
-    ),
+    commons: RecipientApiView.get_params_cls() = Depends(),
 ):
     """
     Get a list of `Recipient` objects based on filters.
@@ -216,9 +214,7 @@ async def recipients(
 )
 async def recipients_base(
     request: Request,
-    commons: RecipientBaseApiView.get_params_cls() = Depends(
-        RecipientBaseApiView.get_params_cls()
-    ),
+    commons: RecipientBaseApiView.get_params_cls() = Depends(),
 ):
     """
     A stripped down version of `Recipients` but only returning recipients `id`,
@@ -251,7 +247,7 @@ async def recipients_base(
 @app.get(CountryApiView.endpoint, response_model=CountryApiView.get_response_model())
 async def countries(
     request: Request,
-    commons: CountryApiView.get_params_cls() = Depends(CountryApiView.get_params_cls()),
+    commons: CountryApiView.get_params_cls() = Depends(),
 ):
     """
     Return aggregated values for countries based on filter criteria.
@@ -298,7 +294,7 @@ async def countries(
 @app.get(YearApiView.endpoint, response_model=YearApiView.get_response_model())
 async def years(
     request: Request,
-    commons: YearApiView.get_params_cls() = Depends(YearApiView.get_params_cls()),
+    commons: YearApiView.get_params_cls() = Depends(),
 ):
     """
     Return aggregated values for years based on filter criteria.
@@ -369,9 +365,7 @@ async def years(
 )
 async def recipients_search(
     request: Request,
-    commons: RecipientSearchApiView.get_params_cls() = Depends(
-        RecipientSearchApiView.get_params_cls()
-    ),
+    commons: RecipientSearchApiView.get_params_cls() = Depends(),
 ):
     """
     Search for recipients by search strings and additional filters.
@@ -393,9 +387,7 @@ async def recipients_search(
 )
 async def scheme_search(
     request: Request,
-    commons: SchemeSearchApiView.get_params_cls() = Depends(
-        SchemeSearchApiView.get_params_cls()
-    ),
+    commons: SchemeSearchApiView.get_params_cls() = Depends(),
 ):
     """
     Search for schemes by search strings and additional filters.
