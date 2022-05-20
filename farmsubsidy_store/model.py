@@ -36,16 +36,16 @@ class Payment(BaseORM, BaseModel):
     country: str
     year: int
     recipient_id: str
-    recipient_name: str
-    recipient_fingerprint: str
+    recipient_name: Optional[str] = None  # anonymous recipients
+    recipient_fingerprint: Optional[str] = None
     recipient_address: Optional[str] = None
     recipient_country: str
     recipient_url: Optional[str] = None
     scheme: Optional[str] = None
     scheme_code: Optional[str] = None
     scheme_description: Optional[str] = None
-    amount: float
-    currency: str
+    amount: Optional[float] = None
+    currency: Optional[str] = None
     amount_original: Optional[float] = None
     currency_original: Optional[str] = None
 
@@ -84,7 +84,7 @@ class Recipient(BaseORM, BaseModel):
     _query_cls = RecipientQuery
 
     id: str
-    name: List[str]
+    name: Optional[List[str]] = []  # anonymous recipients
     address: Optional[List[str]] = []
     country: List[str]
     url: Optional[List[str]] = []

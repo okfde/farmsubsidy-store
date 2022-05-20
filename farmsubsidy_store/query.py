@@ -243,7 +243,7 @@ class RecipientQuery(Query):
         "groupUniqArray(recipient_country) as recipient_country",
         "groupUniqArray(recipient_address) as address",
         "sum(amount) as amount_sum",
-        "avg(amount) as amount_avg",
+        "round(avg(amount), 2) as amount_avg",
         "max(amount) as amount_max",
         "min(amount) as amount_min",
     )
@@ -258,7 +258,7 @@ class RecipientBaseQuery(RecipientQuery):
         "recipient_id as id",
         "count(*) as total_payments",
         "sum(amount) as amount_sum",
-        "avg(amount) as amount_avg",
+        "round(avg(amount), 2) as amount_avg",
         "max(amount) as amount_max",
         "min(amount) as amount_min",
     )
@@ -272,7 +272,7 @@ class SchemeQuery(Query):
         "count(*) as total_payments",
         "count(distinct recipient_id) as total_recipients",
         "sum(amount) as amount_sum",
-        "avg(amount) as amount_avg",
+        "round(avg(amount), 2) as amount_avg",
         "max(amount) as amount_max",
         "min(amount) as amount_min",
     )
@@ -287,7 +287,7 @@ class CountryQuery(Query):
         "count(*) as total_payments",
         "count(distinct recipient_id) as total_recipients",
         "sum(amount) as amount_sum",
-        "avg(amount) as amount_avg",
+        "round(avg(amount), 2) as amount_avg",
         "max(amount) as amount_max",
         "min(amount) as amount_min",
     )
@@ -302,7 +302,7 @@ class YearQuery(Query):
         "count(*) as total_payments",
         "count(distinct recipient_id) as total_recipients",
         "sum(amount) as amount_sum",
-        "avg(amount) as amount_avg",
+        "round(avg(amount), 2) as amount_avg",
         "max(amount) as amount_max",
         "min(amount) as amount_min",
     )

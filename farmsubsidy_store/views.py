@@ -80,13 +80,14 @@ AggregatedOrderBy = _get_enum(
     "order_by", chain(BaseFields.__fields__, AggregatedFields.__fields__)
 )
 
-BaseFields = _create_model("BaseFields", BaseFields)
-AggregatedFields = _create_model("AggregatedFields", AggregatedFields)
+
+BaseFieldsParams = _create_model("BaseFields", BaseFields)
+AggregatedFieldsParams = _create_model("AggregatedFields", AggregatedFields)
 
 
-class BaseViewParams(BaseFields):
+class BaseViewParams(BaseFieldsParams):
     order_by: Optional[OrderBy] = None
-    limit: Optional[int] = None
+    limit: Optional[int] = 1000
     p: Optional[int] = 1
 
     @validator("p")
@@ -101,11 +102,17 @@ class BaseViewParams(BaseFields):
             raise ValueError("Limit must be 1 or higher (got `{value}`).")
         return value
 
+    @validator("order_by")
+    def validate_order_by(cls, value):
+        if isinstance(value, Enum):
+            return value.value
+        return value
+
     class Config:
         extra = "forbid"
 
 
-class AggregatedViewParams(BaseViewParams, AggregatedFields):
+class AggregatedViewParams(BaseViewParams, AggregatedFieldsParams):
     order_by: Optional[AggregatedOrderBy] = None
 
 
@@ -148,9 +155,8 @@ class BaseListView:
             .where(**self.where_params)
             .having(**self.having_params)
         )
-        order_by = self.order_by
-        if order_by is not None:
-            order_by = order_by.name
+        if self.order_by is not None:
+            order_by = self.order_by
             ascending = True
             if order_by.startswith("-"):
                 order_by = order_by[1:]
@@ -166,7 +172,7 @@ class BaseListView:
     def where_params(self) -> dict:
         params = {}
         for k, v in self.params.items():
-            if k in BaseFields.__fields__:
+            if k in BaseFieldsParams.__fields__:
                 params[k] = v
         return params
 
@@ -174,9 +180,24 @@ class BaseListView:
     def having_params(self) -> dict:
         params = {}
         for k, v in self.params.items():
-            if k in AggregatedFields.__fields__:
+            if k in AggregatedFieldsParams.__fields__:
                 params[k] = v
         return params
+
+    @classmethod
+    def get_params_cls(cls):
+        # FIXME
+        # fastapi views cannot share same classes for pydantic models !?
+        order_by_fields = cls.params_cls.schema()["definitions"]["order_by"]["enum"]
+        OrderBy = Enum(
+            f"{cls.__name__}{cls.params_cls.__name__}OrderBy",
+            ((o, o) for o in order_by_fields),
+        )
+        return create_model(
+            f"{cls.__name__}ViewParams",
+            order_by=(OrderBy, None),
+            __base__=cls.params_cls,
+        )
 
 
 class PaymentListView(BaseListView):
