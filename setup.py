@@ -26,6 +26,7 @@ setup(
     package_dir={"farmsubsidy": "farmsubsidy_store"},
     install_requires=[
         "banal",
+        "cachelib",
         "Click",
         "clickhouse-driver",
         "countrynames",
