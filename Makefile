@@ -17,9 +17,13 @@ download:
 	wget -4 -P $(DATA_ROOT)/src/flat/ -r -l2 -H -nd -N -np -A "gz" -e robots=off https://data.farmsubsidy.org/Flat/
 
 clean:
-	# mkdir -p $(DATA_ROOT)/cleaned
-	# parallel "fscli clean -i {} --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/latest/*.gz
-	parallel "fscli clean -i {} -h recipient_name,recipient_street1,recipient_street2,recipient_postcode,recipient_city,amount,amount_original,scheme,year,country --ignore-errors | gzip > $(DATA_ROOT)/cleaned_flat/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/flat/*.gz
+	mkdir -p $(DATA_ROOT)/cleaned
+	parallel "fscli clean -i {} --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/latest/*.gz
+	# some manual fixes
+	fscli clean -i data/src/latest/lt_2016.csv.gz --currency=LTL | gzip > data/cleaned/lt_2016.csv.cleaned.csv.gz
+	fscli clean -i data/src/latest/lt_2015.csv.gz --currency=LTL | gzip > data/cleaned/lt_2015.csv.cleaned.csv.gz
+	fscli clean -i data/src/latest/pl_2015.csv.gz --currency=EUR | gzip > data/cleaned/pl_2015.csv.cleaned.csv.gz
+	# parallel "fscli clean -i {} -h recipient_name,recipient_street1,recipient_street2,recipient_postcode,recipient_city,amount,amount_original,scheme,year,country --ignore-errors | gzip > $(DATA_ROOT)/cleaned_flat/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/flat/*.gz
 
 import: init
 	@if [ "$(DRIVER)" = "clickhouse" ]; then \
@@ -27,6 +31,7 @@ import: init
 	else \
   		find $(DATA_ROOT)/cleaned -type f -name "*.cleaned.csv.gz" -exec fscli db import -i {} \; ; \
 	fi
+
 
 ftm: clean
 	mkdir -p $(DATA_ROOT)/ftm
