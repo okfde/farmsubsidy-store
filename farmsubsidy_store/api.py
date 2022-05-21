@@ -16,7 +16,7 @@ app = FastAPI(title="Farmsubsidy.org API", redoc_url="/")
 
 origins = [
     "http://localhost:3000",
-    "https://sql.farmsubsidy.org",
+    settings.ALLOWED_ORIGIN,
 ]
 app.add_middleware(
     CORSMiddleware,
