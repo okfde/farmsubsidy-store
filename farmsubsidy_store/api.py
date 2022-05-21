@@ -15,9 +15,10 @@ log = get_logger(__name__)
 
 
 if settings.API_CACHE:
-    host, *port = settings.REDIS_URL.rsplit(":", 1)
-    host = host.replace("redis://", "")
-    port = port[0] if len(port) else None
+    uri = settings.REDIS_URL
+    uri = uri.replace("redis://", "")
+    host, *port = uri.rsplit(":", 1)
+    port = port[0] if len(port) else 6379
     cache = redis.RedisCache(host, port, default_timeout=0, key_prefix="fs-api")
 else:
     cache = None

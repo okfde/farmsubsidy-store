@@ -1,4 +1,5 @@
 import os
+from banal import as_bool
 
 from .exceptions import ImproperlyConfigured
 
@@ -33,6 +34,5 @@ LOG_LEVEL = get_env("LOG_LEVEL", "warning")
 LRU_QUERY_CACHE_SIZE = 1024 * 1000  # 1MB
 
 
-FLASK_DEBUG = get_env("FLASK_DEBUG") == "1"
-API_CACHE = get_env("FS_API_CACHE") == "1"
+API_CACHE = as_bool(get_env("FS_API_CACHE"))
 REDIS_URL = get_env("REDIS_URL", "redis://localhost:6379")
