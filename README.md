@@ -3,7 +3,7 @@
 Scripts and pipeline to import [farmsubsidy data](https://data.farmsubsidy.org/latest/)
 into different database backends.
 
-And API to query data powered by [flask_restful](https://flask-restful.readthedocs.io/en/latest/).
+And API to query data powered by [fastapi](https://fastapi.tiangolo.com/).
 
 Currently supported database backends:
 - [duckdb](https://duckdb.org/) useful for smaller data subsets and for testing
