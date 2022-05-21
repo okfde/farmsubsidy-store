@@ -137,7 +137,7 @@ def clean_source(
     @lru_cache(LRU)
     def _clean(v):
         if isinstance(v, str):
-            return v.strip()
+            return v.strip("\"' ',").strip()
         return v
 
     if "year" not in df:
@@ -180,7 +180,7 @@ def clean_recipient_name(name: str):
     fp = generate_fingerprint(name)
     if fp is None:
         return
-    return name.strip()
+    return name
 
 
 @lru_cache(LRU)
