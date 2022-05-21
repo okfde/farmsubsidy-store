@@ -1,15 +1,29 @@
+import re
 from typing import List
 
 from cachelib import redis
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from followthemoney.util import make_entity_id as make_id
 from furl import furl
 from pydantic import BaseModel, create_model
 
 from farmsubsidy_store import search, settings, views
+from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.logging import get_logger
 
 app = FastAPI(title="Farmsubsidy.org API", redoc_url="/")
+
+origins = [
+    "http://localhost:3000",
+    "https://sql.farmsubsidy.org",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 log = get_logger(__name__)
 
@@ -402,3 +416,38 @@ async def scheme_search(
     The returned objects are `Scheme` instances as described above.
     """
     return SchemeSearchApiView().get(request, **commons.dict())
+
+
+# raw sql
+def check_query(query: str = ""):
+    query = query.replace(";", "").strip("\"' ")
+    if re.match(r"^select\s.*\sfrom\sfarmsubsidy.*", query, re.IGNORECASE):
+        return query
+
+
+@app.get("/sql")
+async def raw_sql(response: Response, query: str = Depends(check_query)):
+    """
+    Execute raw sql queries. Returns csv data.
+
+    Only "SELECT ..." queries are allowed.
+    """
+    if query is not None:
+        try:
+            if cache is not None:
+                cache_key = make_id("raw-sql", str(query))
+                cached_results = cache.get(cache_key)
+                if cached_results:
+                    log.info(f"Cache hit for `{cache_key}`")
+                    return cached_results
+            driver = get_driver()
+            df = driver.query(query)
+            data = df.to_csv(index=False)
+            if cache is not None:
+                cache.set(cache_key, data)
+            return Response(content=data, media_type="text/csv")
+        except Exception:
+            response.status_code = 503
+            return {"error": "Server error"}
+    response.status_code = 400
+    return {"error": "Invalid query"}
