@@ -439,7 +439,7 @@ async def raw_sql(response: Response, query: str = Depends(check_query)):
                 cached_results = cache.get(cache_key)
                 if cached_results:
                     log.info(f"Cache hit for `{cache_key}`")
-                    return cached_results
+                    return Response(content=cached_results, media_type="text/csv")
             driver = get_driver()
             df = driver.query(query)
             data = df.to_csv(index=False)
