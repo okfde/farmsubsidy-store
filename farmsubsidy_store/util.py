@@ -38,6 +38,9 @@ def get_context_from_filename(fname: str) -> Tuple[Union[str, None], Union[str, 
     m = re.match(r".*(?P<country>[a-z\D]{2})_(?P<year>[\d]{4})", fname)
     if m:
         return m.groups()
+    m = re.match(r".*(?P<country>[a-z\D]{2})_Subsidies_(?P<year>[\d]{4})", fname)
+    if m:
+        return m.groups()
     return None, None
 
 
