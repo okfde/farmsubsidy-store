@@ -1,6 +1,6 @@
 import logging
 from functools import lru_cache
-from typing import Iterable, Optional
+from typing import Iterable, Iterator, Optional
 
 import duckdb
 import pandas as pd
@@ -9,7 +9,6 @@ from clickhouse_driver import Client
 from . import enums, settings
 from .exceptions import ImproperlyConfigured
 from .query import Query
-
 
 # don't show clickhouse numpy warnings:
 logging.getLogger("clickhouse_driver.columns.service").setLevel(logging.ERROR)
@@ -59,7 +58,8 @@ class Driver:
     def init(self, recreate: Optional[bool] = False):
         if recreate:
             self.execute(self.drop_statement)
-        self.execute(self.create_statement)
+        for stmt in self.create_statement:
+            self.execute(stmt)
 
     def execute(self, *args, **kwargs):
         return self.conn.execute(*args, **kwargs)
@@ -79,7 +79,7 @@ class Clickhouse(Driver):
         `recipient_name`          String NULL,
         `recipient_fingerprint`   String NOT NULL,
         `recipient_address`       String NULL,
-        `recipient_country`       String NOT NULL,
+        `recipient_country`       {country} NOT NULL,
         `recipient_url`           String NULL,
         `scheme`                  String NULL,
         `scheme_code`             String NULL,
@@ -87,9 +87,11 @@ class Clickhouse(Driver):
         `amount`                  Decimal(18, 2) NULL,
         `currency`                {currency} NULL,
         `amount_original`         Decimal(18, 2) NULL,
-        `currency_original`       {currency} NULL
-    ) ENGINE = MergeTree()
-    ORDER BY (country, year, recipient_fingerprint, recipient_id)
+        `currency_original`       {currency} NULL,
+        INDEX fp_ix (recipient_fingerprint) TYPE ngrambf_v1(3, 256, 2, 0) GRANULARITY 4
+    ) ENGINE = ReplacingMergeTree()
+    PRIMARY KEY (country, year, recipient_id)
+    ORDER BY (country, year, recipient_id, pk)
     """
 
     def get_enum(self, values: Iterable[str]) -> str:
@@ -102,9 +104,53 @@ class Clickhouse(Driver):
         country = self.get_enum(enums.COUNTRIES)
         currency = self.get_enum(enums.CURRENCIES)
         year = self.get_enum(enums.YEARS)
-        return self.CREATE_TABLE.format(
+        create_table = self.CREATE_TABLE.format(
             table=self.table, country=country, currency=currency, year=year
         )
+        by_id = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_id (
+            SELECT *
+            ORDER BY recipient_id,country,year
+        )
+        """
+        by_fingerprint = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_fp (
+            SELECT *
+            ORDER BY recipient_fingerprint,country,year
+        )
+        """
+        by_name = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_name (
+            SELECT *
+            ORDER BY recipient_name,country,year
+        )
+        """
+        by_country = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_country (
+            SELECT *
+            ORDER BY country,year,recipient_fingerprint
+        )
+        """
+        by_year = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_year (
+            SELECT *
+            ORDER BY year,country,recipient_fingerprint
+        )
+        """
+        by_scheme = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_scheme (
+            SELECT *
+            ORDER BY scheme,country,year
+        )
+        """
+
+        yield create_table
+        yield by_id
+        yield by_fingerprint
+        yield by_name
+        yield by_country
+        yield by_year
+        yield by_scheme
 
     @property
     def drop_statement(self) -> str:
@@ -149,7 +195,7 @@ class Duckdb(Driver):
         return f"CREATE TYPE {name} AS ENUM ({values})"
 
     @property
-    def create_statement(self) -> str:
+    def create_statement(self) -> Iterator[str]:
         # create enum types first
         countries = self.get_enum("country", enums.COUNTRIES)
         currencies = self.get_enum("currency", enums.CURRENCIES)
@@ -163,7 +209,12 @@ class Duckdb(Driver):
             "CREATE INDEX year_ix ON %s (year)" % self.table,
             "CREATE INDEX fp_ix ON %s (recipient_fingerprint)" % self.table,
         )
-        return ";\n".join((countries, currencies, years, table, *indexes))
+        yield countries
+        yield currencies
+        yield years
+        yield table
+        for ix in indexes:
+            yield ix
 
     @property
     def drop_statement(self) -> str:

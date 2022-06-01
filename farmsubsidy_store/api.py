@@ -8,7 +8,7 @@ from followthemoney.util import make_entity_id as make_id
 from furl import furl
 from pydantic import BaseModel, create_model
 
-from farmsubsidy_store import search, settings, views
+from farmsubsidy_store import settings, views
 from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.logging import get_logger
 
@@ -41,8 +41,11 @@ else:
 class ApiResultMeta(BaseModel):
     page: int = 1
     item_count: int = 0
+    url: str
     next_url: str = None
     prev_url: str = None
+    error: str = None
+    limit: int = 1000
 
 
 class ApiView(views.BaseListView):
@@ -52,27 +55,58 @@ class ApiView(views.BaseListView):
         url.args["p"] = new_page
         return str(url)
 
-    def get(self, request, **params):
-        query = self.get_query(**params)
+    def get(self, request, response, **params):
+        try:
+            query = self.get_query(**params)
+            df = None
 
-        if cache is not None:
-            cache_key = make_id(str(query))
-            cached_results = cache.get(cache_key)
-            if cached_results:
-                log.info(f"Cache hit for `{cache_key}`")
-                return cached_results
+            if cache is not None:
+                cache_key = make_id("view", str(query))
+                cached_results = cache.get(cache_key)
+                if cached_results:
+                    log.info(f"Cache hit for `{cache_key}`")
+                    return cached_results
 
-        self.get_results(**params)
-        results = {
-            "page": self.page,
-            "item_count": self.query.count,
-            "next_url": self.get_page_url(request.url, 1) if self.has_next else None,
-            "prev_url": self.get_page_url(request.url, -1) if self.has_prev else None,
-            "results": [i.dict() for i in self.data],
-        }
-        if cache is not None:
-            cache.set(cache_key, results)
-        return results
+                # as for filtered queries limiting and sorting (windowing) is
+                # as expensive as the whole, we cache the full query for fast
+                # api pagination/ordering
+                full_query = query._chain(limit=None, offset=None, order_by_fields=None)
+                full_cache_key = make_id("precached-window", str(full_query))
+                full_cache_skip = make_id("skip", full_cache_key)
+                skip = cache.get(full_cache_skip)
+                if skip is None:
+                    df = cache.get(full_cache_key)
+                    if df is not None:
+                        log.info(f"Cache hit for `{cache_key}` (precached window)")
+                    else:
+                        # don't cache too big queries
+                        if full_query.count <= 100_000:
+                            df = full_query.execute()
+                            cache.set(full_cache_key, df)
+                        else:
+                            cache.set(full_cache_skip, True)
+
+            self.get_results(df, **params)
+
+            results = {
+                "page": self.page,
+                "limit": self.limit,
+                "item_count": self.query.count,
+                "url": str(request.url),
+                "next_url": self.get_page_url(request.url, 1)
+                if self.has_next
+                else None,
+                "prev_url": self.get_page_url(request.url, -1)
+                if self.has_prev
+                else None,
+                "results": [i.dict() for i in self.data],
+            }
+            if cache is not None:
+                cache.set(cache_key, results)
+            return results
+        except Exception as e:
+            response.status_code = 400
+            return {"error": str(e), "url": str(request.url)}
 
     @classmethod
     def get_response_model(cls):
@@ -95,16 +129,12 @@ class RecipientBaseApiView(views.RecipientBaseView, ApiView):
     endpoint = "/recipients/base"
 
 
-class RecipientSearchApiView(search.RecipientSearchView, ApiView):
-    endpoint = "/recipients/search"
+class RecipientAutocompleteApiView(views.RecipientNameView, ApiView):
+    endpoint = "/recipients/autocomplete"
 
 
 class SchemeApiView(views.SchemeListView, ApiView):
-    endpoint = "/schems"
-
-
-class SchemeSearchApiView(search.SchemeSearchView, ApiView):
-    endpoint = "/schemes/search"
+    endpoint = "/schemes"
 
 
 class CountryApiView(views.CountryListView, ApiView):
@@ -119,6 +149,7 @@ class YearApiView(views.YearListView, ApiView):
 @app.get(PaymentApiView.endpoint, response_model=PaymentApiView.get_response_model())
 async def payments(
     request: Request,
+    response: Response,
     commons: PaymentApiView.get_params_cls() = Depends(),
 ):
     """
@@ -152,7 +183,7 @@ async def payments(
     }
     ```
     """
-    return PaymentApiView().get(request, **commons.dict())
+    return PaymentApiView().get(request, response, **commons.dict())
 
 
 @app.get(
@@ -160,6 +191,7 @@ async def payments(
 )
 async def recipients(
     request: Request,
+    response: Response,
     commons: RecipientApiView.get_params_cls() = Depends(),
 ):
     """
@@ -187,6 +219,14 @@ async def recipients(
 
     `amount_sum__gte=100000` *(Here the aggregated numbers are on all of the recipients payments)*
 
+    **Search for recipients**
+
+    The `recipient_fingerprint` field is a normalized value of the recipient's name.
+    Lookups via the sql `LIKE` clause are possible via: (no need for `ILIKE` as it's always case insensitive)
+
+    This applies to all other api views that can filter by `recipient_fingerprint`
+
+    `recipient_fingerprint__like=%nestle%`
 
     Example return data for `Recipient` model:
 
@@ -199,9 +239,7 @@ async def recipients(
       "address": [
         "Magdeburg, Landeshauptstadt, DE-39104, DE"
       ],
-      "country": [
-        "DE"
-      ],
+      "country": "DE",
       "url": [],
       "years": [
         2020,
@@ -214,13 +252,13 @@ async def recipients(
       ],
       "total_payments": 13,
       "amount_sum": 86110951.26,
-      "amount_avg": 6623919.327692308,
+      "amount_avg": 6623919.32,
       "amount_max": 18899165.05,
       "amount_min": 25600
     }
     ```
     """
-    return RecipientApiView().get(request, **commons.dict())
+    return RecipientApiView().get(request, response, **commons.dict())
 
 
 @app.get(
@@ -229,6 +267,7 @@ async def recipients(
 )
 async def recipients_base(
     request: Request,
+    response: Response,
     commons: RecipientBaseApiView.get_params_cls() = Depends(),
 ):
     """
@@ -241,7 +280,8 @@ async def recipients_base(
     metadata (names, ...) in subsequent calls.
 
     Although in the returned objects the "string fields" name, address, scheme, ...
-    are missing, they are still filterable (see query parameters below)
+    are missing, they are still filterable (see query parameters below), e.g. searching
+    via `recipient_fingerprint` (see example above)
 
     Example return data for `RecipientBase` model:
 
@@ -250,18 +290,53 @@ async def recipients_base(
       "id": "e03c4b6034def644b096a70148e9cdeaa25f8702",
       "total_payments": 13,
       "amount_sum": 86110951.26,
-      "amount_avg": 6623919.327692308,
+      "amount_avg": 6623919.32,
       "amount_max": 18899165.05,
       "amount_min": 25600
     }
     ```
     """
-    return RecipientBaseApiView().get(request, **commons.dict())
+    return RecipientBaseApiView().get(request, response, **commons.dict())
+
+
+@app.get(SchemeApiView.endpoint, response_model=SchemeApiView.get_response_model())
+async def schemes(
+    request: Request,
+    response: Response,
+    commons: SchemeApiView.get_params_cls() = Depends(),
+):
+    """
+    Return aggregated values for schemes based on filter criteria.
+
+    Currently, schemes are not very clean (aka de-duplicated) across countries.
+
+    As well they mostly lack more detailed descriptions.
+
+    ```json
+    {
+      "scheme": "\"FEGA\" \"Plata unica pe suprafata - R.73/09, art.122\"",
+      "years": [
+        2014
+      ],
+      "countries": [
+        "RO"
+      ],
+      "total_payments": 753800,
+      "total_recipients": 713239,
+      "amount_sum": 941990883.68,
+      "amount_avg": 1249.66,
+      "amount_max": 6980579.2,
+      "amount_min": 0.04
+    }
+    ```
+    """
+    return SchemeApiView().get(request, response, **commons.dict())
 
 
 @app.get(CountryApiView.endpoint, response_model=CountryApiView.get_response_model())
 async def countries(
     request: Request,
+    response: Response,
     commons: CountryApiView.get_params_cls() = Depends(),
 ):
     """
@@ -297,18 +372,19 @@ async def countries(
         2014
       ],
       "amount_sum": 3650826849.16,
-      "amount_avg": 13784.299459928867,
+      "amount_avg": 13784.29,
       "amount_max": 19038160,
       "amount_min": -430471.33
     }
     ```
     """
-    return CountryApiView().get(request, **commons.dict())
+    return CountryApiView().get(request, response, **commons.dict())
 
 
 @app.get(YearApiView.endpoint, response_model=YearApiView.get_response_model())
 async def years(
     request: Request,
+    response: Response,
     commons: YearApiView.get_params_cls() = Depends(),
 ):
     """
@@ -364,58 +440,43 @@ async def years(
         "LV"
       ],
       "amount_sum": 55454516829.99,
-      "amount_avg": 3030.084227294196,
+      "amount_avg": 3030.08,
       "amount_max": 43400289.79,
       "amount_min": -46089007.35
     }
     ```
     """
-    return YearApiView().get(request, **commons.dict())
-
-
-# search views
-@app.get(
-    RecipientSearchApiView.endpoint,
-    response_model=RecipientSearchApiView.get_response_model(),
-)
-async def recipients_search(
-    request: Request,
-    commons: RecipientSearchApiView.get_params_cls() = Depends(),
-):
-    """
-    Search for recipients by search strings and additional filters.
-
-    Search is always case insensitive.
-
-    The `q` parameter for searching recipient names works like the sql "LIKE" clause,
-    so to search for a recipient with a name *containing* "nestle", the search string
-    (`q`) would be "%nestle%"
-
-    The returned objects are `Payment` instances as described above.
-    """
-    return RecipientSearchApiView().get(request, **commons.dict())
+    return YearApiView().get(request, response, **commons.dict())
 
 
 @app.get(
-    SchemeSearchApiView.endpoint,
-    response_model=SchemeSearchApiView.get_response_model(),
+    RecipientAutocompleteApiView.endpoint,
+    response_model=RecipientAutocompleteApiView.get_response_model(),
 )
-async def scheme_search(
+async def recipients_autocomplete(
     request: Request,
-    commons: SchemeSearchApiView.get_params_cls() = Depends(),
+    response: Response,
+    commons: RecipientAutocompleteApiView.get_params_cls() = Depends(),
 ):
     """
-    Search for schemes by search strings and additional filters.
+    Search for recipient names and get first matching results
+    for autocompleting purposes
 
-    Search is always case insensitive.
+    Lookup by parameter `recipient_name__ilike='foo%'`
 
-    The `q` parameter for searching schemes works like the sql "LIKE" clause,
-    so e.g. to search for the EU scheme starting with "I/V.5", the search string
-    (`q`) would be "I/V.5%"
+    Optional filtering by common filters (see below)
 
-    The returned objects are `Scheme` instances as described above.
+    Example result:
+
+    ```json
+    {
+      "id": "7907b1ad3ff464b302715d4f7a90b3c938a916bc",
+      "name": "Jansen, Sven Olaf",
+      "country": "DE"
+    }
+    ```
     """
-    return SchemeSearchApiView().get(request, **commons.dict())
+    return RecipientAutocompleteApiView().get(request, response, **commons.dict())
 
 
 # raw sql

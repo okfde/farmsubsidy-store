@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from farmsubsidy_store import settings
 from farmsubsidy_store.exceptions import InvalidQuery
-from farmsubsidy_store.query import Query
+from farmsubsidy_store.query import Query, RecipientNameQuery
 
 
 class QueryTestCase(TestCase):
@@ -153,3 +153,15 @@ class QueryTestCase(TestCase):
         with self.assertRaisesRegex(InvalidQuery, "Invalid operator"):
             q = Query().where(recipient_id__invalid__op=0)
             str(q)
+
+    def test_query_autocomplete(self):
+        q = RecipientNameQuery()
+        self.assertEqual(
+            str(q),
+            "SELECT distinct recipient_id as id, recipient_name as name, recipient_country FROM farmsubsidy",
+        )
+        q = RecipientNameQuery().where(country="DE")
+        self.assertEqual(
+            str(q),
+            "SELECT distinct recipient_id as id, recipient_name as name, recipient_country FROM farmsubsidy WHERE country = 'DE'",
+        )

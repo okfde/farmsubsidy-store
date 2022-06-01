@@ -77,7 +77,7 @@ class Query:
         if self.group_by_fields:
             count_part = f"DISTINCT {', '.join(self.group_by_fields)}"
         query = (
-            f"SELECT count({count_part}) as count FROM {self.table}{self.where_part}"
+            f"SELECT count({count_part}) AS count FROM {self.table}{self.where_part}"
         )
         df = self.execute(query)
         return int(df["count"][0])
@@ -220,6 +220,10 @@ class Query:
             return f" LIMIT {offset}, {self.limit}"
         return f" OFFSET {offset}"
 
+    @property
+    def is_filtered(self) -> bool:
+        return bool(self.where_part or self.having_part)
+
     def get_query(self) -> str:
         rest = "".join(
             (
@@ -236,16 +240,16 @@ class Query:
 
 class RecipientQuery(Query):
     fields = (
-        "recipient_id as id",
-        "count(*) as total_payments",
-        "groupUniqArray(year) as years",
-        "groupUniqArray(recipient_name) as name",
-        "groupUniqArray(recipient_country) as recipient_country",
-        "groupUniqArray(recipient_address) as address",
-        "sum(amount) as amount_sum",
-        "round(avg(amount), 2) as amount_avg",
-        "max(amount) as amount_max",
-        "min(amount) as amount_min",
+        "recipient_id AS id",
+        "count(*) AS total_payments",
+        "groupUniqArray(year) AS years",
+        "groupUniqArray(recipient_name) AS name",
+        "arrayElement(groupUniqArray(recipient_country), 1) AS recipient_country",
+        "groupUniqArray(recipient_address) AS address",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
     )
     group_by_fields = ("recipient_id",)
     order_by_fields = ("recipient_id",)
@@ -255,26 +259,36 @@ class RecipientBaseQuery(RecipientQuery):
     """simpler query without string aggregation"""
 
     fields = (
-        "recipient_id as id",
-        "count(*) as total_payments",
-        "sum(amount) as amount_sum",
-        "round(avg(amount), 2) as amount_avg",
-        "max(amount) as amount_max",
-        "min(amount) as amount_min",
+        "recipient_id AS id",
+        "count(*) AS total_payments",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
+    )
+
+
+class RecipientNameQuery(Query):
+    """quick search for names"""
+
+    fields = (
+        "distinct recipient_id AS id",
+        "recipient_name AS name",
+        "recipient_country",
     )
 
 
 class SchemeQuery(Query):
     fields = (
         "scheme",
-        "groupUniqArray(year) as years",
-        "groupUniqArray(country) as countries",
-        "count(*) as total_payments",
-        "count(distinct recipient_id) as total_recipients",
-        "sum(amount) as amount_sum",
-        "round(avg(amount), 2) as amount_avg",
-        "max(amount) as amount_max",
-        "min(amount) as amount_min",
+        "groupUniqArray(year) AS years",
+        "groupUniqArray(country) AS countries",
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
     )
     group_by_fields = ("scheme",)
     order_by_fields = ("scheme",)
@@ -283,13 +297,13 @@ class SchemeQuery(Query):
 class CountryQuery(Query):
     fields = (
         "country",
-        "groupUniqArray(year) as years",
-        "count(*) as total_payments",
-        "count(distinct recipient_id) as total_recipients",
-        "sum(amount) as amount_sum",
-        "round(avg(amount), 2) as amount_avg",
-        "max(amount) as amount_max",
-        "min(amount) as amount_min",
+        "groupUniqArray(year) AS years",
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
     )
     group_by_fields = ("country",)
     order_by_fields = ("country",)
@@ -298,13 +312,13 @@ class CountryQuery(Query):
 class YearQuery(Query):
     fields = (
         "year",
-        "groupUniqArray(country) as countries",
-        "count(*) as total_payments",
-        "count(distinct recipient_id) as total_recipients",
-        "sum(amount) as amount_sum",
-        "round(avg(amount), 2) as amount_avg",
-        "max(amount) as amount_max",
-        "min(amount) as amount_min",
+        "groupUniqArray(country) AS countries",
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
     )
     group_by_fields = ("year",)
     order_by_fields = ("year",)

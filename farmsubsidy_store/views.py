@@ -5,7 +5,9 @@ from enum import Enum
 from itertools import chain, product
 from typing import Iterable, Optional, Tuple, Union
 
+import pandas as pd
 from banal import clean_dict
+from fingerprints import generate as generate_fp
 from pydantic import BaseModel, create_model, validator
 
 from farmsubsidy_store import model as models
@@ -40,6 +42,15 @@ class BaseFields(BaseModel):
     scheme_description: StringLookups = None
     amount: NumericLookups = None
 
+    def __init__(self, **data):
+        # rewrite fingerprint lookups to actual fingerprints
+        # but preserve % signs (if any) for LIKE clause
+        for key, value in data.items():
+            if "fingerprint" in key and value is not None:
+                old_value = value.strip("%")
+                data[key] = value.replace(old_value, generate_fp(old_value))
+        super().__init__(**data)
+
 
 class AggregatedFields(BaseModel):
     amount_sum: NumericLookups = None
@@ -66,7 +77,9 @@ def _create_model(
                 yield field, str
 
     return create_model(
-        name, **{field: (Optional[type_], None) for field, type_ in _fields()}
+        name,
+        **{field: (Optional[type_], None) for field, type_ in _fields()},
+        __base__=fields_model,
     )
 
 
@@ -125,11 +138,14 @@ class BaseListView:
     model = None
     params_cls = BaseViewParams
 
-    def get_results(self, **params):
+    def get_results(self, df: pd.DataFrame = None, **params):
         self.apply_params(**params)
         self.query = self.get_query(**params)
-        self.data = list(self.query)
-        self.has_next = self.query.count >= self.limit
+        if df is not None:
+            self.data = self.get_results_from_df(df)
+        else:
+            self.data = list(self.query)
+        self.has_next = self.query.count >= self.page * self.limit
         self.has_prev = self.page > 1
         return self.data
 
@@ -167,6 +183,21 @@ class BaseListView:
 
     def get_initial_query(self) -> Query:
         return self.model.select()
+
+    def get_results_from_df(self, df: pd.DataFrame):
+        # use a previously cached df and apply ordering and slicing on it
+        if not len(df):
+            return []
+        if self.order_by is not None:
+            order_by = self.order_by
+            ascending = True
+            if order_by.startswith("-"):
+                order_by = order_by[1:]
+                ascending = False
+            df = df.sort_values(order_by, ascending=ascending)
+        start, end = self.get_slice(self.page, self.limit)
+        df = df.iloc[start:end]
+        return [self.model(**row) for _, row in df.iterrows()]
 
     @property
     def where_params(self) -> dict:
@@ -217,6 +248,13 @@ class RecipientBaseView(RecipientListView):
     """
 
     model = models.RecipientBase
+
+
+class RecipientNameView(BaseListView):
+    """quick autocomplete view"""
+
+    max_limit = 10
+    model = models.RecipientName
 
 
 class SchemeListView(BaseListView):

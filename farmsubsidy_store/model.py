@@ -3,10 +3,12 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from .drivers import get_driver
+from .enrich import COUNTRYNAMES
 from .query import (
     CountryQuery,
     Query,
     RecipientBaseQuery,
+    RecipientNameQuery,
     RecipientQuery,
     SchemeQuery,
     YearQuery,
@@ -65,6 +67,21 @@ class Payment(BaseORM, BaseModel):
         return Country.get(self.country)
 
 
+class RecipientName(BaseORM, BaseModel):
+    """abstraction to quickly get names"""
+
+    _lookup_field = "recipient_fingerprint"
+    _query_cls = RecipientNameQuery
+
+    id: str
+    name: str
+    country: str
+
+    def __init__(self, **data):  # FIXME
+        data["country"] = data.pop("recipient_country", data.get("country"))
+        super().__init__(**data)
+
+
 class RecipientBase(BaseORM, BaseModel):
     _lookup_field = "recipient_id"
     _query_cls = RecipientBaseQuery
@@ -86,7 +103,7 @@ class Recipient(BaseORM, BaseModel):
     id: str
     name: Optional[List[str]] = []  # anonymous recipients
     address: Optional[List[str]] = []
-    country: List[str]
+    country: str
     url: Optional[List[str]] = []
     years: List[int] = []
     total_payments: int
@@ -150,6 +167,7 @@ class Country(BaseORM, BaseModel):
     _query_cls = CountryQuery
 
     country: str
+    name: str
     total_recipients: int
     total_payments: int
     years: List[int]
@@ -160,6 +178,10 @@ class Country(BaseORM, BaseModel):
 
     def __str__(self):
         return self.country
+
+    def __init__(self, **data):
+        data["name"] = COUNTRYNAMES[data["country"]]
+        super().__init__(**data)
 
     def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(country=self.country)
