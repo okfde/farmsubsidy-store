@@ -1,7 +1,7 @@
 name: Build api
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
   push:
     # Publish `master` as Docker `latest` image.
     branches:
