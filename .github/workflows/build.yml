@@ -1,11 +1,11 @@
-name: Build api
+name: Build api container
 
 on:
   workflow_dispatch:
   push:
     # Publish `master` as Docker `latest` image.
     branches:
-      - master
+      - main
 
     # Publish `v1.2.3` tags as releases.
     # tags:
@@ -16,6 +16,7 @@ on:
 
 env:
   IMAGE_NAME: farmsubsidy_api
+  DOCKER_BUILDKIT: 1
 
 jobs:
   # Push image to GitHub Packages.
