@@ -38,7 +38,7 @@ ftm: clean
 	parallel "gunzip -c {} | ftm map-csv mapping.yml | ftm store write -d farmsubsidy" ::: $(DATA_ROOT)/cleaned/*.gz
 	ftm store iterate -d farmsubsidy > $(DATA_ROOT)/ftm/farmsubsidy.ftm.ijson
 
-clickhouse:
+clickhouse:  # for dev, doesn't persist data
 	docker run -p 8123:8123 -p 9000:9000 --ulimit nofile=262144:262144 clickhouse/clickhouse-server
 
 install.dev:
@@ -46,3 +46,8 @@ install.dev:
 
 test:
 	pytest -s --cov=farmsubsidy_store --cov-report term-missing
+
+
+docker:
+	echo $(GITHUB_PAT) | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
+	docker-compose up -d
