@@ -141,9 +141,7 @@ def db_init(obj, recreate):
 @click.pass_obj
 def db_import(obj, infile, ignore_errors):
     driver = _get_driver(obj, read_only=False)
-    # https://clickhouse-driver.readthedocs.io/en/latest/features.html#numpy-pandas-support
     df = read_csv(infile, dtype=object)
-    df = df.applymap(lambda x: None if x == "" else x)
     res = db.insert(df, driver, not ignore_errors, infile.name)
     log.info(f"Inserted {res} rows.", db=settings.DATABASE_URI, infile=infile.name)
 

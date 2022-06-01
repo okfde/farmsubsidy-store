@@ -18,11 +18,11 @@ download:
 
 clean:
 	mkdir -p $(DATA_ROOT)/cleaned
-	parallel "fscli clean -i {} --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/latest/*.gz
+	parallel "fscli clean -i {} --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/latest/*.csv.gz
 	# some manual fixes
-	fscli clean -i data/src/latest/lt_2016.csv.gz --currency=LTL | gzip > data/cleaned/lt_2016.csv.cleaned.csv.gz
-	fscli clean -i data/src/latest/lt_2015.csv.gz --currency=LTL | gzip > data/cleaned/lt_2015.csv.cleaned.csv.gz
-	fscli clean -i data/src/latest/pl_2015.csv.gz --currency=EUR | gzip > data/cleaned/pl_2015.csv.cleaned.csv.gz
+	fscli clean -i $(DATA_ROOT)/src/latest/lt_2016.csv.gz --currency=LTL | gzip > $(DATA_ROOT)/cleaned/lt_2016.csv.cleaned.csv.gz
+	fscli clean -i $(DATA_ROOT)/src/latest/lt_2015.csv.gz --currency=LTL | gzip > $(DATA_ROOT)/cleaned/lt_2015.csv.cleaned.csv.gz
+	fscli clean -i $(DATA_ROOT)/src/latest/pl_2015.csv.gz --currency=EUR | gzip > $(DATA_ROOT)/cleaned/pl_2015.csv.cleaned.csv.gz
 	# parallel "fscli clean -i {} -h recipient_name,recipient_street1,recipient_street2,recipient_postcode,recipient_city,amount,amount_original,scheme,year,country --ignore-errors | gzip > $(DATA_ROOT)/cleaned_flat/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/flat/*.gz
 
 import: init
@@ -38,7 +38,7 @@ ftm: clean
 	parallel "gunzip -c {} | ftm map-csv mapping.yml | ftm store write -d farmsubsidy" ::: $(DATA_ROOT)/cleaned/*.gz
 	ftm store iterate -d farmsubsidy > $(DATA_ROOT)/ftm/farmsubsidy.ftm.ijson
 
-clickhouse-server:
+clickhouse:
 	docker run -p 8123:8123 -p 9000:9000 --ulimit nofile=262144:262144 clickhouse/clickhouse-server
 
 install.dev:

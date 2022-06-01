@@ -81,6 +81,7 @@ class Clickhouse(Driver):
         `recipient_address`       String NULL,
         `recipient_country`       {country} NOT NULL,
         `recipient_url`           String NULL,
+        `scheme_id`               String NULL,
         `scheme`                  String NULL,
         `scheme_code`             String NULL,
         `scheme_description`      String NULL,
@@ -137,6 +138,12 @@ class Clickhouse(Driver):
             ORDER BY year,country,recipient_fingerprint
         )
         """
+        by_scheme_id = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_scheme_id (
+            SELECT *
+            ORDER BY scheme_id,country,year
+        )
+        """
         by_scheme = f"""
         ALTER TABLE {self.table} ADD PROJECTION {self.table}_scheme (
             SELECT *
@@ -151,12 +158,15 @@ class Clickhouse(Driver):
         yield by_country
         yield by_year
         yield by_scheme
+        yield by_scheme_id
 
     @property
     def drop_statement(self) -> str:
         return self.DROP_TABLE.format(table=self.table)
 
     def insert(self, df: pd.DataFrame) -> int:
+        # https://clickhouse-driver.readthedocs.io/en/latest/features.html#numpy-pandas-support
+        df = df.applymap(lambda x: None if x == "" else x)
         res = self.conn.insert_dataframe("INSERT INTO %s VALUES" % self.table, df)
         return res
 
@@ -180,6 +190,7 @@ class Duckdb(Driver):
         recipient_address       VARCHAR,
         recipient_country       VARCHAR NOT NULL,
         recipient_url           VARCHAR,
+        scheme_id               VARCHAR,
         scheme                  VARCHAR,
         scheme_code             VARCHAR,
         scheme_description      VARCHAR,
@@ -208,6 +219,7 @@ class Duckdb(Driver):
             "CREATE INDEX country_ix ON %s (country)" % self.table,
             "CREATE INDEX year_ix ON %s (year)" % self.table,
             "CREATE INDEX fp_ix ON %s (recipient_fingerprint)" % self.table,
+            "CREATE INDEX scheme_ix ON %s (scheme_id)" % self.table,
         )
         yield countries
         yield currencies

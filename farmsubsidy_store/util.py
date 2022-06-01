@@ -59,3 +59,16 @@ def handle_error(logger, e: Union[Exception, str], do_raise: bool, **kwargs):
     if do_raise:
         raise e
     logger.error(f"{e.__class__.__name__}: `{e}`", **kwargs)
+
+
+def clear_lru():
+    import functools
+    import gc
+
+    gc.collect()
+    wrappers = [
+        a for a in gc.get_objects() if isinstance(a, functools._lru_cache_wrapper)
+    ]
+
+    for wrapper in wrappers:
+        wrapper.cache_clear()

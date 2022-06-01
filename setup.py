@@ -6,7 +6,7 @@ with open("README.md") as f:
 
 setup(
     name="farmsubsidy-store",
-    version="0.1",
+    version="0.2",
     description="Importer, storage and api for farmsubsidy data",
     long_description=long_description,
     long_description_content_type="text/markdown",

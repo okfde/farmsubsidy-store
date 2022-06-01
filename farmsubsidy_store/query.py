@@ -280,7 +280,8 @@ class RecipientNameQuery(Query):
 
 class SchemeQuery(Query):
     fields = (
-        "scheme",
+        "scheme_id AS id",
+        "arrayElement(groupUniqArray(scheme), 1) as name",
         "groupUniqArray(year) AS years",
         "groupUniqArray(country) AS countries",
         "count(*) AS total_payments",
@@ -290,8 +291,8 @@ class SchemeQuery(Query):
         "max(amount) AS amount_max",
         "min(amount) AS amount_min",
     )
-    group_by_fields = ("scheme",)
-    order_by_fields = ("scheme",)
+    group_by_fields = ("scheme_id",)
+    order_by_fields = ("scheme_id",)
 
 
 class CountryQuery(Query):

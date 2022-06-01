@@ -11,34 +11,35 @@ from tests.util import ClickhouseTestCase
 
 class ClickhouseModelTestCase(ClickhouseTestCase):
     def test_clickhouse_model_payment_detail(self):
-        payment = Payment.get("60ec9ed0ebb8097eb37da4899254cec0357e001a")
+        payment = Payment.get("293f7602da9ae71ce109391790e3c3502ef9f25f")
         self.assertIsInstance(payment, Payment)
         self.assertDictEqual(
             payment.dict(),
             {
-                "pk": "60ec9ed0ebb8097eb37da4899254cec0357e001a",
-                "country": "CZ",
-                "year": 2015,
-                "recipient_id": "8dcd46e1010938d370d4f49477ce50b71c1a1f3e",
-                "recipient_name": "AGRO Chomutice a.s.",
-                "recipient_fingerprint": "agro as chomutice",
-                "recipient_address": "Chomutice, district Jičín  ",
-                "recipient_country": "CZ",
-                "recipient_url": "http://www.szif.cz/irj/portal/eng/list_of_beneficiaries?ji=1000002098&opatr=&year=2015&portalAction=detail",
-                "scheme": "SSP",
-                "scheme_code": "",
-                "scheme_description": "",
-                "amount": 110923.77,
+                "pk": "293f7602da9ae71ce109391790e3c3502ef9f25f",
+                "country": "LU",
+                "year": 2019,
+                "recipient_id": "005e71502e2563a45712b6746281304ba7850a0e",
+                "recipient_name": "ANDRE SCHOLTES",
+                "recipient_fingerprint": "andre scholtes",
+                "recipient_address": "Weiswampach, LU",
+                "recipient_country": "LU",
+                "recipient_url": None,
+                "scheme_id": "76a11191619ecfa3f6db476a0fb17606ad4f29cc",
+                "scheme": "II.1",
+                "scheme_code": None,
+                "scheme_description": None,
+                "amount": 4475.54,
                 "currency": "EUR",
-                "amount_original": 3070241.87,
-                "currency_original": "CZK",
+                "amount_original": 4475.54,
+                "currency_original": "EUR",
             },
         )
 
         self.assertIsInstance(payment.get_recipient(), Recipient)
         self.assertEqual(payment.get_recipient().id, payment.recipient_id)
         self.assertIsInstance(payment.get_scheme(), Scheme)
-        self.assertEqual(payment.get_scheme().scheme, payment.scheme)
+        self.assertEqual(payment.get_scheme().name, payment.scheme)
         self.assertIsInstance(payment.get_year(), Year)
         self.assertEqual(payment.get_year().year, payment.year)
         self.assertIsInstance(payment.get_country(), Country)
@@ -50,17 +51,17 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         payments = Payment.select()
         payments = list(payments)
         self.assertIsInstance(payments[0], Payment)
-        self.assertEqual(len(payments), 13361)
+        self.assertEqual(len(payments), 13352)
 
     def test_clickhouse_model_recipient_detail(self):
-        recipient = Recipient.get("20e1978de9f56d8d39ee78315b83339cf9c6e620")
+        recipient = Recipient.get("4262d50d6d8095a89895b8740208018da19e140a")
         self.assertIsInstance(recipient, Recipient)
         self.assertDictEqual(
             recipient.dict(),
             {
-                "id": "20e1978de9f56d8d39ee78315b83339cf9c6e620",
+                "id": "4262d50d6d8095a89895b8740208018da19e140a",
                 "name": ["LUC HOFFMANN"],
-                "address": ["(B) Burg-Reuland  "],
+                "address": ["(B) Burg-Reuland, LU"],
                 "country": "LU",
                 "url": [],
                 "years": [2019],
@@ -77,8 +78,6 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         self.assertEqual(len(payments), 3)
         self.assertEqual(recipient.amount_sum, 4294.58)
         self.assertEqual(recipient.total_payments, 3)
-        self.assertEqual(recipient.name, ["LUC HOFFMANN"])
-        self.assertEqual(recipient.country, ["LU"])
         payments = list(recipient.get_payments().where(amount__gt=1000))
         self.assertEqual(len(payments), 1)
 
@@ -91,7 +90,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         self.assertIsInstance(Recipient.select(), RecipientQuery)
 
         recipients = list(Recipient.select())
-        self.assertEqual(len(recipients), 3202)
+        self.assertEqual(len(recipients), 3032)
 
         recipients = list(Recipient.select()[:100])
         self.assertEqual(len(recipients), 100)
@@ -103,11 +102,11 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
 
         recipients = list(Recipient.select().where(country="LU"))
         self.assertIsInstance(recipients[0], Recipient)
-        self.assertEqual(len(recipients), 1683)
+        self.assertEqual(len(recipients), 1526)
 
         recipients = list(Recipient.select().where(country="LU", year=2019))
         self.assertIsInstance(recipients[0], Recipient)
-        self.assertEqual(len(recipients), 1683)
+        self.assertEqual(len(recipients), 1526)
 
         # no results
         recipients = list(Recipient.select().where(country="LU", year=2018))
@@ -126,23 +125,24 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         self.assertEqual(total_payments, actual_payments)
 
     def test_clickhouse_model_scheme_detail(self):
-        scheme = Scheme.get("IV/A.18")
+        scheme = Scheme.get("02ad3dc4be4e81a0afcfe2732fce5c859e620d59")
         self.assertIsInstance(scheme, Scheme)
-        self.assertEqual(scheme.total_payments, 1206)
-        self.assertEqual(scheme.total_recipients, 1204)
+        self.assertEqual(scheme.total_payments, 109)
+        self.assertEqual(scheme.total_recipients, 109)
 
         self.assertDictEqual(
             scheme.dict(),
             {
-                "scheme": "IV/A.18",
+                "id": "02ad3dc4be4e81a0afcfe2732fce5c859e620d59",
+                "name": "II.6",
                 "years": [2019],
                 "countries": ["LU"],
-                "total_payments": 1206,
-                "total_recipients": 1204,
-                "amount_sum": 13384487.96,
-                "amount_avg": 11098.25,
-                "amount_max": 54243.39,
-                "amount_min": 270.16,
+                "total_payments": 109,
+                "total_recipients": 109,
+                "amount_sum": 536547.34,
+                "amount_avg": 4922.45,
+                "amount_max": 8973.78,
+                "amount_min": 88.48,
             },
         )
 
@@ -179,7 +179,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
                 "country": "LU",
                 "name": "Luxembourg",
                 "years": [2019],
-                "total_recipients": 1683,
+                "total_recipients": 1526,
                 "total_payments": 7718,
                 "amount_sum": 80915089.85,
                 "amount_avg": 10483.95,
@@ -211,7 +211,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             {
                 "year": 2019,
                 "countries": ["LU"],
-                "total_recipients": 1683,
+                "total_recipients": 1526,
                 "total_payments": 7718,
                 "amount_sum": 80915089.85,
                 "amount_avg": 10483.95,
@@ -246,8 +246,8 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             (Country, "get_countries"),
         )
 
-        def _test(cls, value, field=None):
-            field = field or cls.__name__.lower()
+        def _test(cls, value):
+            field = cls._lookup_field
             instance = cls.get(value)
             for model, getter in models:
                 if model != cls:
@@ -258,10 +258,8 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
 
         _test(Year, 2019)
         _test(Country, "LU")
-        _test(Scheme, "IV/A.18")
-        _test(
-            Recipient, "20e1978de9f56d8d39ee78315b83339cf9c6e620", field="recipient_id"
-        )
+        _test(Scheme, "02ad3dc4be4e81a0afcfe2732fce5c859e620d59")
+        _test(Recipient, "4262d50d6d8095a89895b8740208018da19e140a")
 
     def test_clickhouse_model_aggregated_lookups(self):
         # the country with most recipients
@@ -281,11 +279,11 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
         self.assertListEqual(
             [r.id for r in res],
             [
-                "1a8f3fe35e2133d54cd358d9ec1ca9ec63733417",
-                "5f94bb2400314f95210416da60a162e69a4df896",
-                "ff5b4056d8874a4318c68418fba6c36f95c56f88",
-                "8bd89aeeb10f99deb18eccc2e67093f2c39ef016",
-                "51fb847f17983024b1196afc91027e35fa2029f9",
+                "05e03e6b126fbfd92d741fde3d836485053590ec",
+                "28b7c19a6192bee7993522d9ab34222caebd535f",
+                "ce0ed1b807ba5912f2dfbd333351e4b144f61508",
+                "e421b72afd80bf9b5ca040ca85bb482c8e5dfb15",
+                "bd738818419703f77bd2f355a8048b91e4cf0ce7",
             ],
         )
 
@@ -296,7 +294,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             .order_by("amount_sum", ascending=False)
             .first()
         )
-        self.assertEqual(recipient.id, "7804e76ad6a464153745e7277b453c9980f2191c")
+        self.assertEqual(recipient.id, "ebcc24f4e75fa9cde8ddfd436ea8d33e2cc17416")
 
         # get the recipient from LU in 2019 that has the lowest but positive income:
         recipient = (
@@ -307,4 +305,4 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
             .first()
         )
         self.assertTrue(recipient.amount_sum > 0)
-        self.assertEqual(recipient.id, "a52d8abe7134d380447c0fd68ab88ba973e3563c")
+        self.assertEqual(recipient.id, "d3e89e4b8d6fff3157229ac61ff7ae0dcb604ba3")

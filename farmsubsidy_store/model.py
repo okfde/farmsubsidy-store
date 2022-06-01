@@ -43,6 +43,7 @@ class Payment(BaseORM, BaseModel):
     recipient_address: Optional[str] = None
     recipient_country: str
     recipient_url: Optional[str] = None
+    scheme_id: Optional[str] = None
     scheme: Optional[str] = None
     scheme_code: Optional[str] = None
     scheme_description: Optional[str] = None
@@ -58,7 +59,7 @@ class Payment(BaseORM, BaseModel):
         return Recipient.get(self.recipient_id)
 
     def get_scheme(self) -> "Scheme":
-        return Scheme.get(self.scheme)
+        return Scheme.get(self.scheme_id)
 
     def get_year(self) -> "Year":
         return Year.get(self.year)
@@ -133,10 +134,11 @@ class Recipient(BaseORM, BaseModel):
 
 
 class Scheme(BaseORM, BaseModel):
-    _lookup_field = "scheme"
+    _lookup_field = "scheme_id"
     _query_cls = SchemeQuery
 
-    scheme: str
+    id: str
+    name: str
     years: List[int]
     countries: List[str]
     total_payments: int
@@ -150,16 +152,16 @@ class Scheme(BaseORM, BaseModel):
         return self.scheme
 
     def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(scheme=self.scheme)
+        return Recipient.select().where(scheme_id=self.id)
 
     def get_payments(self) -> Query:
-        return Payment.select().where(scheme=self.scheme)
+        return Payment.select().where(scheme_id=self.id)
 
     def get_years(self) -> Query:
-        return Year.select().where(scheme=self.scheme)
+        return Year.select().where(scheme_id=self.id)
 
     def get_countries(self) -> Query:
-        return Country.select().where(scheme=self.scheme)
+        return Country.select().where(scheme_id=self.id)
 
 
 class Country(BaseORM, BaseModel):

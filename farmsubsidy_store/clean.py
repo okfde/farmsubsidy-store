@@ -6,10 +6,12 @@ import countrynames
 import pandas as pd
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
+from normality import normalize
 
-from .currency_conversion import CURRENCIES, convert_to_euro, CURRENCY_LOOKUP
+from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
 from .exceptions import InvalidAmount, InvalidCountry, InvalidCurrency, InvalidSource
 from .logging import get_logger
+from .util import clear_lru
 from .util import handle_error as _handle_error
 
 log = get_logger(__name__)
@@ -36,6 +38,7 @@ CLEAN_COLUMNS = (
     "recipient_address",
     "recipient_country",
     "recipient_url",
+    "scheme_id",
     "scheme",
     "scheme_code",
     "scheme_description",
@@ -74,7 +77,7 @@ ADDRESS_PARTS = (
 )
 
 
-LRU = 1024 * 1000 * 100
+LRU = 1024 * 1000
 
 
 @lru_cache(LRU)
@@ -238,8 +241,9 @@ def clean_scheme(row: pd.Series) -> str:
     ).strip()
 
 
-def clean_scheme_code(row: pd.Series) -> str:
-    return row.get("scheme_code_short")
+@lru_cache(LRU)
+def clean_scheme_id(scheme: str) -> str:
+    return make_entity_id(normalize(scheme))
 
 
 @lru_cache(LRU)
@@ -336,7 +340,6 @@ def apply_clean(
         "recipient_address": clean_recipient_address,
         "recipient_id": clean_recipient_id,
         "scheme": clean_scheme,
-        # "scheme_code": clean_scheme_code,
         "pk": lambda r: make_entity_id(*[r[k] for k in UNIQUE]),
     }
 
@@ -356,6 +359,8 @@ def apply_clean(
         df["scheme_code"] = df["scheme_code_short"]
     else:
         df["scheme_code"] = None
+
+    df["scheme_id"] = df["scheme"].map(clean_scheme_id)
 
     df["amount_original"] = df["amount_original"].map(to_decimal)
 
@@ -388,4 +393,5 @@ def clean(
         df = df.drop_duplicates(subset=("pk",))
     for e in bulk_errors:
         _handle_error(log, e, False, fpath=fpath or "stdin")
+    clear_lru()
     return df

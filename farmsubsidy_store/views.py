@@ -37,6 +37,7 @@ class BaseFields(BaseModel):
     recipient_name: StringLookups = None
     recipient_fingerprint: StringLookups = None
     recipient_address: StringLookups = None
+    scheme_id: StringLookups = None
     scheme: StringLookups = None
     scheme_code: StringLookups = None
     scheme_description: StringLookups = None
