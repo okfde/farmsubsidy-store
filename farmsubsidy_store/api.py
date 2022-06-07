@@ -49,12 +49,6 @@ class ApiResultMeta(BaseModel):
 
 
 class ApiView(views.BaseListView):
-    def get_page_url(self, url: str, change: int):
-        new_page = self.page + change
-        url = furl(url)
-        url.args["p"] = new_page
-        return str(url)
-
     def get(self, request, response, **params):
         try:
             query = self.get_query(**params)
@@ -65,7 +59,7 @@ class ApiView(views.BaseListView):
                 cached_results = cache.get(cache_key)
                 if cached_results:
                     log.info(f"Cache hit for `{cache_key}`")
-                    return cached_results
+                    return self.ensure_urls(request, cached_results)
 
                 # as for filtered queries limiting and sorting (windowing) is
                 # as expensive as the whole, we cache the full query for fast
@@ -93,10 +87,10 @@ class ApiView(views.BaseListView):
                 "limit": self.limit,
                 "item_count": self.query.count,
                 "url": str(request.url),
-                "next_url": self.get_page_url(request.url, 1)
+                "next_url": self.get_page_url(self.page, request.url, 1)
                 if self.has_next
                 else None,
-                "prev_url": self.get_page_url(request.url, -1)
+                "prev_url": self.get_page_url(self.page, request.url, -1)
                 if self.has_prev
                 else None,
                 "results": [i.dict() for i in self.data],
@@ -115,6 +109,27 @@ class ApiView(views.BaseListView):
             results=(List[cls.model], []),
             __base__=ApiResultMeta,
         )
+
+    @classmethod
+    def get_page_url(cls, page: int, url: str, change: int):
+        new_page = page + change
+        url = furl(url)
+        url.args["p"] = new_page
+        return str(url)
+
+    @classmethod
+    def ensure_urls(cls, request: Request, result: dict) -> dict:
+        # request urls should always rewritten in returned cached payload as
+        # someone could put anything in get parameters (they are ignored by the
+        # api, though) that would then be cached and returned to other users as
+        # well, this seems not to be a security risk but feels weird
+        url = str(request.url)
+        result["url"] = url
+        if result["next_url"] is not None:
+            result["next_url"] = cls.get_page_url(result["page"], url, 1)
+        if result["prev_url"] is not None:
+            result["prev_url"] = cls.get_page_url(result["page"], url, -1)
+        return result
 
 
 class PaymentApiView(views.PaymentListView, ApiView):

@@ -1,6 +1,5 @@
 services:
   api:
-    user: ${USER}
     build: .
     restart: unless-stopped
     command: "gunicorn -w 2 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 300 --name farmsubsidy_api \
@@ -19,7 +18,6 @@ services:
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://farmsubsidy.org}
 
   clickhouse:
-    user: ${USER}
     image: clickhouse/clickhouse-server
     restart: unless-stopped
     volumes:
@@ -34,7 +32,6 @@ services:
         hard: "65536"
 
   redis:
-    user: ${USER}
     image: redis:alpine
     restart: unless-stopped
     ports:

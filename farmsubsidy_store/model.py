@@ -137,16 +137,16 @@ class Scheme(BaseORM, BaseModel):
     _lookup_field = "scheme_id"
     _query_cls = SchemeQuery
 
-    id: str
+    id: Optional[str] = None  # FIXME
     name: str
     years: List[int]
     countries: List[str]
     total_payments: int
     total_recipients: int
-    amount_sum: float
-    amount_avg: float
-    amount_max: float
-    amount_min: float
+    amount_sum: Optional[float] = None
+    amount_avg: Optional[float] = None
+    amount_max: Optional[float] = None
+    amount_min: Optional[float] = None
 
     def __str__(self):
         return self.scheme
