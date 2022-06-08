@@ -62,6 +62,11 @@ class AggregatedFields(BaseModel):
     total_recipients: NumericLookups = None
 
 
+class OutputFormat(Enum):
+    csv = "csv"
+    json = "json"
+
+
 def _create_model(
     name: str, fields_model: Union[BaseFields, AggregatedFields]
 ) -> BaseModel:
@@ -103,6 +108,7 @@ class BaseViewParams(BaseFieldsParams):
     order_by: Optional[OrderBy] = None
     limit: Optional[int] = 1000
     p: Optional[int] = 1
+    output: Optional[OutputFormat] = OutputFormat.json
 
     @validator("p")
     def validate_p(cls, value):
@@ -156,6 +162,7 @@ class BaseListView:
         self.page = params.pop("p", 1)
         self.order_by = params.pop("order_by", None)
         self.limit = min(self.max_limit, params.pop("limit", self.max_limit))
+        self.output_format = params.pop("output")
         self.params = params
         return params
 

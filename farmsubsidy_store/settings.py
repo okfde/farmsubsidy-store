@@ -34,6 +34,6 @@ LOG_LEVEL = get_env("LOG_LEVEL", "warning")
 LRU_QUERY_CACHE_SIZE = 1024 * 1000  # 1MB
 
 
-API_CACHE = as_bool(get_env("FS_API_CACHE"))
+API_CACHE = as_bool(get_env("API_CACHE"))
 REDIS_URL = get_env("REDIS_URL", "redis://localhost:6379")
-ALLOWED_ORIGIN = get_env("FS_API_ALLOWED_ORIGIN", "https://sql.farmsubsidy.org")
+ALLOWED_ORIGIN = get_env("API_ALLOWED_ORIGIN", "https://sql.farmsubsidy.org")

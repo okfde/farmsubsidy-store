@@ -1,6 +1,7 @@
 import re
-from typing import List
+from typing import List, Union
 
+import pandas as pd
 from cachelib import redis
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,9 @@ from pydantic import BaseModel, create_model
 from farmsubsidy_store import settings, views
 from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.logging import get_logger
+
+
+CSV = views.OutputFormat.csv
 
 app = FastAPI(title="Farmsubsidy.org API", redoc_url="/")
 
@@ -55,11 +59,24 @@ class ApiView(views.BaseListView):
             df = None
 
             if cache is not None:
-                cache_key = make_id("view", str(query))
+                cache_prefix = "csv" if self.output_format == CSV else "view"
+                cache_key = make_id(cache_prefix, str(query))
                 cached_results = cache.get(cache_key)
                 if cached_results:
-                    log.info(f"Cache hit for `{cache_key}`")
-                    return self.ensure_urls(request, cached_results)
+                    log.info(
+                        f"Cache hit for `{cache_key}` ({self.output_format.value})"
+                    )
+                    return self.ensure_response(request, cached_results)
+
+                if self.output_format == CSV:
+                    # maybe we have the query cached already as json
+                    cache_key_json = make_id("view", str(query))
+                    cached_results = cache.get(cache_key_json)
+                    if cached_results:
+                        log.info(f"Cache hit for `{cache_key}` (json)")
+                        result = self.to_csv(cached_results["results"])
+                        cache.set(cache_key, result)
+                        return self.ensure_response(request, result)
 
                 # as for filtered queries limiting and sorting (windowing) is
                 # as expensive as the whole, we cache the full query for fast
@@ -82,6 +99,14 @@ class ApiView(views.BaseListView):
 
             self.get_results(df, **params)
 
+            # csv response
+            if self.output_format == CSV:
+                result = self.to_csv(self.data)
+                if cache is not None:
+                    cache.set(cache_key, result)
+                return self.ensure_response(request, result)
+
+            # json response
             results = {
                 "page": self.page,
                 "limit": self.limit,
@@ -98,9 +123,33 @@ class ApiView(views.BaseListView):
             if cache is not None:
                 cache.set(cache_key, results)
             return results
+
         except Exception as e:
             response.status_code = 400
             return {"error": str(e), "url": str(request.url)}
+
+    def to_csv(self, data: List[BaseModel]):
+        df = pd.DataFrame(dict(i) for i in data)
+        df = df.applymap(
+            lambda x: ";".join(sorted(str(i) for i in x)) if isinstance(x, list) else x
+        )
+        return df.fillna("").to_csv(index=False)
+
+    def ensure_response(self, request: Request, result: Union[dict, str]) -> dict:
+        if self.output_format == CSV:
+            return Response(content=result, media_type="text/csv")
+
+        # request urls should always rewritten in returned cached payload as
+        # someone could put anything in get parameters (they are ignored by the
+        # api, though) that would then be cached and returned to other users as
+        # well, this seems not to be a security risk but feels weird
+        url = str(request.url)
+        result["url"] = url
+        if result["next_url"] is not None:
+            result["next_url"] = self.get_page_url(result["page"], url, 1)
+        if result["prev_url"] is not None:
+            result["prev_url"] = self.get_page_url(result["page"], url, -1)
+        return result
 
     @classmethod
     def get_response_model(cls):
@@ -116,20 +165,6 @@ class ApiView(views.BaseListView):
         url = furl(url)
         url.args["p"] = new_page
         return str(url)
-
-    @classmethod
-    def ensure_urls(cls, request: Request, result: dict) -> dict:
-        # request urls should always rewritten in returned cached payload as
-        # someone could put anything in get parameters (they are ignored by the
-        # api, though) that would then be cached and returned to other users as
-        # well, this seems not to be a security risk but feels weird
-        url = str(request.url)
-        result["url"] = url
-        if result["next_url"] is not None:
-            result["next_url"] = cls.get_page_url(result["page"], url, 1)
-        if result["prev_url"] is not None:
-            result["prev_url"] = cls.get_page_url(result["page"], url, -1)
-        return result
 
 
 class PaymentApiView(views.PaymentListView, ApiView):
