@@ -283,3 +283,14 @@ class YearListView(BaseListView):
 class LocationListView(BaseListView):
     params_cls = AggregatedViewParams
     model = models.Location
+
+
+class AggregationView(BaseListView):
+    params_cls = BaseViewParams
+    model = models.Aggregation
+
+    def get_results(self, df: pd.DataFrame = None, **params):
+        res = super().get_results(df, **params)
+        self.has_next = False
+        self.has_prev = False
+        return res

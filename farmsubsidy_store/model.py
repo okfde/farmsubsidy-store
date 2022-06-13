@@ -13,6 +13,7 @@ from .query import (
     SchemeQuery,
     YearQuery,
     LocationQuery,
+    AggregationQuery,
 )
 
 
@@ -256,3 +257,14 @@ class Location(BaseORM, BaseModel):
 
     def get_countries(self) -> Query:
         return Country.select().where(year=self.address)
+
+
+class Aggregation(BaseORM, BaseModel):
+    _query_cls = AggregationQuery
+
+    total_recipients: Optional[int] = None
+    total_payments: Optional[int] = None
+    amount_sum: Optional[float] = None
+    amount_avg: Optional[float] = None
+    amount_max: Optional[float] = None
+    amount_min: Optional[float] = None

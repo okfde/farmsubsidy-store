@@ -46,6 +46,7 @@ class ApiResultMeta(BaseModel):
     page: int = 1
     item_count: int = 0
     url: str
+    query: dict = {}
     next_url: str = None
     prev_url: str = None
     error: str = None
@@ -118,6 +119,7 @@ class ApiView(views.BaseListView):
                 "prev_url": self.get_page_url(self.page, request.url, -1)
                 if self.has_prev
                 else None,
+                "query": self.params,
                 "results": [i.dict() for i in self.data],
             }
             if cache is not None:
@@ -197,6 +199,10 @@ class YearApiView(views.YearListView, ApiView):
 
 class LocationApiView(views.LocationListView, ApiView):
     endpoint = "/locations"
+
+
+class AggregationApiView(views.AggregationView, ApiView):
+    endpoint = "/agg"
 
 
 # model views
@@ -584,6 +590,36 @@ async def recipients_autocomplete(
     ```
     """
     return RecipientAutocompleteApiView().get(request, response, **commons.dict())
+
+
+@app.get(
+    AggregationApiView.endpoint,
+    response_model=AggregationApiView.get_response_model(),
+)
+async def aggregation(
+    request: Request,
+    response: Response,
+    commons: AggregationApiView.get_params_cls() = Depends(),
+):
+    """
+    Aggregate numbers for whatever filter criterion
+
+    The returned results list contains always 1 result (the aggregation)
+
+    Example result for `Aggregation` model:
+
+    ```json
+    {
+      "total_recipients": 12092563,
+      "total_payments": 90437860,
+      "amount_sum": 371207322754.9,
+      "amount_avg": 4108.96,
+      "amount_max": 131798746.58,
+      "amount_min": -214470170.97
+    }
+    ```
+    """
+    return AggregationApiView().get(request, response, **commons.dict())
 
 
 # raw sql

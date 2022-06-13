@@ -339,3 +339,16 @@ class LocationQuery(Query):
     )
     group_by_fields = ("recipient_address",)
     order_by_fields = ("recipient_address",)
+
+
+class AggregationQuery(Query):
+    """return aggregated numbers for whatever filter criteria"""
+
+    fields = (
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
+    )
