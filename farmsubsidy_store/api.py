@@ -195,6 +195,10 @@ class YearApiView(views.YearListView, ApiView):
     endpoint = "/years"
 
 
+class LocationApiView(views.LocationListView, ApiView):
+    endpoint = "/locations"
+
+
 # model views
 @app.get(PaymentApiView.endpoint, response_model=PaymentApiView.get_response_model())
 async def payments(
@@ -393,7 +397,7 @@ async def countries(
     Return aggregated values for countries based on filter criteria.
 
     Of course, you can filter by `country` to
-    [get a single country](http://localhost:8000/countries?country=SK).
+    [get a single country](/countries?country=SK).
 
     There are two kinds of filters:
 
@@ -441,7 +445,7 @@ async def years(
     Return aggregated values for years based on filter criteria.
 
     Of course, you can filter by `years` to
-    [get a single years](http://localhost:8000/years?year=2020).
+    [get a single year](/years?year=2020).
 
     There are two kinds of filters:
 
@@ -497,6 +501,59 @@ async def years(
     ```
     """
     return YearApiView().get(request, response, **commons.dict())
+
+
+@app.get(LocationApiView.endpoint, response_model=LocationApiView.get_response_model())
+async def locations(
+    request: Request,
+    response: Response,
+    commons: LocationApiView.get_params_cls() = Depends(),
+):
+    """
+    Return aggregated values for locations (`recipient_address`) based on
+    filter criteria.
+
+    Of course, you can filter by `recipient_address` to
+    [get a single location](/locations?recipient_address="Sevilla, Sevilla, 41091, ES").
+
+    There are two kinds of filters:
+
+    1. fitler criteria on the payments of individual recipients
+    2. filter criteria on the payments aggegration on each location
+
+    The payments are filtered **before** the numbers for locations
+    are aggregated, so if you filter for specific payment criteria,
+    the `amount_sum`, `amount_avg`... properties fo the returned locations
+    are the aggregations for the filtered subset of their payments, not for
+    all their payments.
+
+    Example return data for `Location` model:
+
+    ```json
+    {
+      "location": "ADMONT, 8913, AT",
+      "years": [
+        2020,
+        2015,
+        2017,
+        2016,
+        2019,
+        2018,
+        2014
+      ],
+      "countries": [
+        "AT"
+      ],
+      "total_recipients": 37,
+      "total_payments": 543,
+      "amount_sum": 4861766.56,
+      "amount_avg": 8953.53,
+      "amount_max": 754827.8,
+      "amount_min": -667.9
+    }
+    ```
+    """
+    return LocationApiView().get(request, response, **commons.dict())
 
 
 @app.get(

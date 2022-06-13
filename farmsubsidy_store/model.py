@@ -12,6 +12,7 @@ from .query import (
     RecipientQuery,
     SchemeQuery,
     YearQuery,
+    LocationQuery,
 )
 
 
@@ -225,3 +226,33 @@ class Year(BaseORM, BaseModel):
 
     def get_countries(self) -> Query:
         return Country.select().where(year=self.year)
+
+
+class Location(BaseORM, BaseModel):
+    _lookup_field = "recipient_address"
+    _query_cls = LocationQuery
+
+    location: Optional[str] = None
+    years: Optional[List[int]] = []
+    countries: Optional[List[str]] = []
+    total_recipients: Optional[int] = None
+    total_payments: Optional[int] = None
+    amount_sum: Optional[float] = None
+    amount_avg: Optional[float] = None
+    amount_max: Optional[float] = None
+    amount_min: Optional[float] = None
+
+    def __str__(self):
+        return str(self.address)
+
+    def get_recipients(self) -> RecipientQuery:
+        return Recipient.select().where(year=self.address)
+
+    def get_payments(self) -> Query:
+        return Payment.select().where(year=self.address)
+
+    def get_schemes(self) -> Query:
+        return Scheme.select().where(year=self.address)
+
+    def get_countries(self) -> Query:
+        return Country.select().where(year=self.address)

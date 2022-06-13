@@ -323,3 +323,19 @@ class YearQuery(Query):
     )
     group_by_fields = ("year",)
     order_by_fields = ("year",)
+
+
+class LocationQuery(Query):
+    fields = (
+        "recipient_address as location",
+        "groupUniqArray(year) AS years",
+        "groupUniqArray(country) AS countries",
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
+    )
+    group_by_fields = ("recipient_address",)
+    order_by_fields = ("recipient_address",)

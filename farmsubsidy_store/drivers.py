@@ -150,6 +150,12 @@ class Clickhouse(Driver):
             ORDER BY scheme,country,year
         )
         """
+        by_location = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_location (
+            SELECT *
+            ORDER BY recipient_address,country,year
+        )
+        """
 
         yield create_table
         yield by_id
@@ -159,6 +165,7 @@ class Clickhouse(Driver):
         yield by_year
         yield by_scheme
         yield by_scheme_id
+        yield by_location
 
     @property
     def drop_statement(self) -> str:

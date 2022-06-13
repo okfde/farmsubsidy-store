@@ -278,3 +278,8 @@ class CountryListView(BaseListView):
 class YearListView(BaseListView):
     params_cls = AggregatedViewParams
     model = models.Year
+
+
+class LocationListView(BaseListView):
+    params_cls = AggregatedViewParams
+    model = models.Location
