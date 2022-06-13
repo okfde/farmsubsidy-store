@@ -109,6 +109,7 @@ class BaseViewParams(BaseFieldsParams):
     limit: Optional[int] = 1000
     p: Optional[int] = 1
     output: Optional[OutputFormat] = OutputFormat.json
+    api_key: Optional[str] = None
 
     @validator("p")
     def validate_p(cls, value):
@@ -161,10 +162,14 @@ class BaseListView:
         params = clean_dict(params.dict())
         self.page = params.pop("p", 1)
         self.order_by = params.pop("order_by", None)
-        self.limit = min(self.max_limit, params.pop("limit", self.max_limit))
         self.output_format = params.pop("output")
+        self.limit = self.get_limit(params.pop("limit", self.max_limit), **params)
         self.params = params
         return params
+
+    def get_limit(self, limit: int, **params) -> int:
+        # allow override in api view for higher limit based on api key
+        return min(self.max_limit, limit)
 
     def get_slice(self, page: int, limit: int) -> Tuple[int, int]:
         start = (page - 1) * limit
@@ -222,21 +227,6 @@ class BaseListView:
             if k in AggregatedFieldsParams.__fields__:
                 params[k] = v
         return params
-
-    @classmethod
-    def get_params_cls(cls):
-        # FIXME
-        # fastapi views cannot share same classes for pydantic models !?
-        order_by_fields = cls.params_cls.schema()["definitions"]["order_by"]["enum"]
-        OrderBy = Enum(
-            f"{cls.__name__}{cls.params_cls.__name__}OrderBy",
-            ((o, o) for o in order_by_fields),
-        )
-        return create_model(
-            f"{cls.__name__}ViewParams",
-            order_by=(OrderBy, None),
-            __base__=cls.params_cls,
-        )
 
 
 class PaymentListView(BaseListView):

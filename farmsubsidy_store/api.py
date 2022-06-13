@@ -1,4 +1,5 @@
 import re
+from enum import Enum
 from typing import List, Union
 
 import pandas as pd
@@ -12,7 +13,6 @@ from pydantic import BaseModel, create_model
 from farmsubsidy_store import settings, views
 from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.logging import get_logger
-
 
 CSV = views.OutputFormat.csv
 
@@ -130,6 +130,13 @@ class ApiView(views.BaseListView):
             response.status_code = 400
             return {"error": str(e), "url": str(request.url)}
 
+    def get_limit(self, limit, **params):
+        # allow higher for secret api key (used by nextjs server side calls)
+        api_key = params.pop("api_key", None)
+        if api_key == settings.API_KEY:
+            return limit
+        return super().get_limit(limit)
+
     def to_csv(self, data: List[BaseModel]):
         df = pd.DataFrame(dict(i) for i in data)
         df = df.applymap(
@@ -167,6 +174,21 @@ class ApiView(views.BaseListView):
         url = furl(url)
         url.args["p"] = new_page
         return str(url)
+
+    @classmethod
+    def get_params_cls(cls):
+        # FIXME
+        # fastapi views cannot share same classes for pydantic models !?
+        order_by_fields = cls.params_cls.schema()["definitions"]["order_by"]["enum"]
+        OrderBy = Enum(
+            f"{cls.__name__}{cls.params_cls.__name__}OrderBy",
+            ((o, o) for o in order_by_fields),
+        )
+        return create_model(
+            f"{cls.__name__}ViewParams",
+            order_by=(OrderBy, None),
+            __base__=cls.params_cls,
+        )
 
 
 class PaymentApiView(views.PaymentListView, ApiView):
