@@ -16,6 +16,8 @@ services:
       API_CACHE: 1
       API_ALLOWED_ORIGIN: ${API_ALLOWED_ORIGIN:-https://farmsubsidy.org}
       API_KEY: ${API_KEY}
+    volumes:
+      - ${DATA_ROOT:-.}/public/exports:/app/data/exports
 
   clickhouse:
     # user: "1000:1000"
