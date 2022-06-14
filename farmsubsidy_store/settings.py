@@ -12,6 +12,8 @@ def get_env(name, default=None):
         return str(default)
 
 
+DEBUG = as_bool(get_env("DEBUG"))
+
 DATA_ROOT = get_env("DATA_ROOT", os.path.join(os.getcwd(), "data"))
 
 DEFAULT_DATABASE_URIS = {
@@ -33,8 +35,9 @@ DATABASE_TABLE = get_env("DATABASE_TABLE", "farmsubsidy")
 LOG_LEVEL = get_env("LOG_LEVEL", "warning")
 LRU_QUERY_CACHE_SIZE = 1024 * 1000  # 1MB
 
-
 API_CACHE = as_bool(get_env("API_CACHE"))
 REDIS_URL = get_env("REDIS_URL", "redis://localhost:6379")
 ALLOWED_ORIGIN = get_env("API_ALLOWED_ORIGIN", "https://sql.farmsubsidy.org")
 API_KEY = get_env("API_KEY", "secret-api-key")
+EXPORT_DIRECTORY = get_env("EXPORT_DIRECTORY", os.path.join(DATA_ROOT, "exports"))
+EXPORT_PUBLIC_PATH = get_env("EXPORT_PUBLIC_PATH", "/exports")

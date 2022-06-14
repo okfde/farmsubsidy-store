@@ -2,10 +2,10 @@ import re
 from enum import Enum
 from typing import List, Union
 
-import pandas as pd
 from cachelib import redis
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from followthemoney.util import make_entity_id as make_id
 from furl import furl
 from pydantic import BaseModel, create_model
@@ -15,6 +15,7 @@ from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.logging import get_logger
 
 CSV = views.OutputFormat.csv
+EXPORT = views.OutputFormat.export
 
 app = FastAPI(title="Farmsubsidy.org API", redoc_url="/")
 
@@ -42,15 +43,25 @@ else:
     cache = None
 
 
+if settings.DEBUG:
+    # serve csv exports directily, for production use e.g. nginx
+    app.mount(
+        settings.EXPORT_PUBLIC_PATH,
+        StaticFiles(directory=settings.EXPORT_DIRECTORY),
+        name="exports",
+    )
+
+
 class ApiResultMeta(BaseModel):
     page: int = 1
     item_count: int = 0
     url: str
+    export_url: str = None
     query: dict = {}
     next_url: str = None
     prev_url: str = None
     error: str = None
-    limit: int = 1000
+    limit: int = None
 
 
 class ApiView(views.BaseListView):
@@ -58,6 +69,17 @@ class ApiView(views.BaseListView):
         try:
             query = self.get_query(**params)
             df = None
+
+            if self.output_format == EXPORT:
+                export_path = self.get_export(**params)
+                export_url = furl(request.base_url) / export_path
+                return {
+                    "item_count": self.query.count,
+                    "limit": self.limit,
+                    "url": str(request.url),
+                    "query": self.params,
+                    "export_url": str(export_url),
+                }
 
             if cache is not None:
                 cache_prefix = "csv" if self.output_format == CSV else "view"
@@ -136,13 +158,6 @@ class ApiView(views.BaseListView):
         if api_key == settings.API_KEY:
             return limit
         return super().get_limit(limit)
-
-    def to_csv(self, data: List[BaseModel]):
-        df = pd.DataFrame(dict(i) for i in data)
-        df = df.applymap(
-            lambda x: ";".join(sorted(str(i) for i in x)) if isinstance(x, list) else x
-        )
-        return df.fillna("").to_csv(index=False)
 
     def ensure_response(self, request: Request, result: Union[dict, str]) -> dict:
         if self.output_format == CSV:
