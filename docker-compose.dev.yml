@@ -14,8 +14,9 @@ services:
     environment:
       DATABASE_URI: clickhouse
       REDIS_URL: redis://redis
-      FS_API_CACHE: 1
-      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://farmsubsidy.org}
+      API_CACHE: 1
+      API_ALLOWED_ORIGIN: ${API_ALLOWED_ORIGIN:-https://sql.farmsubsidy.org}
+      API_KEY: ${API_KEY}
 
   clickhouse:
     image: clickhouse/clickhouse-server
