@@ -232,8 +232,8 @@ class BaseListView:
         export_file = make_id("export", str(self.query)) + ".csv"
         export_fpath = os.path.join(settings.EXPORT_DIRECTORY, export_file)
         if not os.path.isfile(export_fpath):
-            data = self.get_results(**params)
-            self.to_csv(data, export_fpath)
+            df = self.query.execute()
+            self.to_csv(df, export_fpath)
         return settings.EXPORT_PUBLIC_PATH + "/" + export_file
 
     @property
@@ -253,8 +253,11 @@ class BaseListView:
         return params
 
     @classmethod
-    def to_csv(cls, data: List[BaseModel], fpath: Optional[str] = None):
-        df = pd.DataFrame(dict(i) for i in data)
+    def to_csv(
+        cls, df: Union[List[BaseModel], pd.DataFrame], fpath: Optional[str] = None
+    ):
+        if not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame(dict(i) for i in df)
         df = df.applymap(
             lambda x: ";".join(sorted(str(i) for i in x)) if isinstance(x, list) else x
         )

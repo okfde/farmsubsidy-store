@@ -36,7 +36,6 @@ services:
         hard: "65536"
 
   redis:
-    user: "1000:1000"
     image: redis:alpine
     restart: unless-stopped
     ports:
