@@ -11,6 +11,7 @@ from normality import normalize
 from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
 from .exceptions import InvalidAmount, InvalidCountry, InvalidCurrency, InvalidSource
 from .logging import get_logger
+from .schemes import guess_scheme
 from .util import clear_lru
 from .util import handle_error as _handle_error
 
@@ -230,15 +231,15 @@ def clean_recipient_country(
 
 def clean_scheme(row: pd.Series) -> str:
     scheme = row.get("scheme")
-    if scheme is not None:
-        return scheme
-    return " ".join(
-        (
-            row.get("scheme_name", ""),
-            row.get("scheme_1", ""),
-            row.get("scheme_2", ""),
-        )
-    ).strip()
+    if scheme is None:
+        scheme = " ".join(
+            (
+                row.get("scheme_name", ""),
+                row.get("scheme_1", ""),
+                row.get("scheme_2", ""),
+            )
+        ).strip()
+    return guess_scheme(scheme)
 
 
 @lru_cache(LRU)

@@ -5,16 +5,17 @@ from pydantic import BaseModel
 from .drivers import get_driver
 from .enrich import COUNTRYNAMES
 from .query import (
+    AggregationQuery,
     CountryQuery,
+    LocationQuery,
     Query,
     RecipientBaseQuery,
     RecipientNameQuery,
     RecipientQuery,
     SchemeQuery,
     YearQuery,
-    LocationQuery,
-    AggregationQuery,
 )
+from .schemes import DESCRIPTIONS
 
 
 class BaseORM:
@@ -164,6 +165,9 @@ class Scheme(BaseORM, BaseModel):
 
     def get_countries(self) -> Query:
         return Country.select().where(scheme_id=self.id)
+
+    def get_description(self):
+        return DESCRIPTIONS.get(self.name)
 
 
 class Country(BaseORM, BaseModel):
