@@ -1,7 +1,7 @@
 services:
   api:
     user: "1000:1000"
-    image: ghcr.io/okfde/farmsubsidy_api:main
+    build: .
     restart: unless-stopped
     command: "gunicorn -w 8 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 300 --name farmsubsidy_api \
       --log-level info --log-file - farmsubsidy_store.api:app"
