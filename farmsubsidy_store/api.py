@@ -102,7 +102,7 @@ class ApiView(views.BaseListView):
         is_authenticated: Optional[bool] = False,
         **params,
     ):
-        log.info("Auth", authenticated=is_authenticated)
+        log.debug("Auth", authenticated=is_authenticated)
         try:
             query = self.get_query(is_authenticated=is_authenticated, **params)
             df = None
