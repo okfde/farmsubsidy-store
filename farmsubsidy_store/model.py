@@ -91,11 +91,11 @@ class RecipientBase(BaseORM, BaseModel):
     _query_cls = RecipientBaseQuery
 
     id: str
-    total_payments: int
-    amount_sum: float
-    amount_avg: float
-    amount_max: float
-    amount_min: float
+    total_payments: Optional[int] = 0
+    amount_sum: Optional[float] = 0
+    amount_avg: Optional[float] = 0
+    amount_max: Optional[float] = 0
+    amount_min: Optional[float] = 0
 
 
 class Recipient(BaseORM, BaseModel):
@@ -110,11 +110,11 @@ class Recipient(BaseORM, BaseModel):
     country: str
     url: Optional[List[str]] = []
     years: List[int] = []
-    total_payments: int
-    amount_sum: float
-    amount_avg: float
-    amount_max: float
-    amount_min: float
+    total_payments: Optional[int] = 0
+    amount_sum: Optional[float] = 0
+    amount_avg: Optional[float] = 0
+    amount_max: Optional[float] = 0
+    amount_min: Optional[float] = 0
 
     def __init__(self, **data):  # FIXME
         data["country"] = data.pop("recipient_country", data.get("country"))
