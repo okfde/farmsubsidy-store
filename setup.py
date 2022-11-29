@@ -30,7 +30,6 @@ setup(
         "Click",
         "clickhouse-driver",
         "countrynames",
-        "duckdb",
         "fastapi",
         "fingerprints",
         "followthemoney",
