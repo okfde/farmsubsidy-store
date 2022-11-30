@@ -38,6 +38,7 @@ setup(
         "furl",
         "matplotlib",
         "pandas",
+        "pycountry",
         "pydantic",
         "pyicu",
         "redis",
