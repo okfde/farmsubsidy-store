@@ -3,11 +3,10 @@ import uuid
 from functools import lru_cache
 from typing import Optional
 
-import countrynames
 import pandas as pd
-import pycountry
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
+from ftm_geocode.util import get_country_code, get_country_name
 from normality import normalize
 
 from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
@@ -29,6 +28,8 @@ def handle_error(log, e, do_raise, **kwargs):
 
 
 UNIQUE = ["year", "country", "recipient_id", "scheme", "amount"]
+
+EMPTY_NAME = "<empty name>"
 
 
 CLEAN_COLUMNS = (
@@ -159,22 +160,10 @@ def clean_source(
     return df.applymap(_clean)
 
 
-@lru_cache(LRU)
-def _get_country_code(value: str) -> str:
-    return countrynames.to_code(value)
-
-
-@lru_cache(LRU)
-def _get_country_name(code: str) -> str:
-    # at this time we are sure the code is valid
-    country = pycountry.countries.get(alpha_2=code)
-    return country.name
-
-
 def validate_country(
     value: str, bulk_errors: set, do_raise: bool, fpath: Optional[str] = None
 ) -> str:
-    res = _get_country_code(value)
+    res = get_country_code(value)
     if res is None:
         handle_error(
             log,
@@ -189,10 +178,10 @@ def validate_country(
 
 @lru_cache(LRU)
 def clean_recipient_name(name: str):
-    """fingerprint is None for empty names or names only with special chars (***)"""
+    """ensure names placeholder"""
     fp = generate_fingerprint(name)
     if fp is None:
-        return
+        return EMPTY_NAME
     return name
 
 
@@ -202,15 +191,14 @@ def make_entity_id(*parts) -> str:
 
 
 def clean_recipient_id(row: pd.Series) -> str:
-    """deduplicate recipients via generated id from country, name, address"""
-    name = row["recipient_name"]
-    if name is None:
-        # anonymous
-        name = uuid.uuid4()
+    """deduplicate recipients via generated id from country, fingerprint, address"""
+    ident = row["recipient_fingerprint"]
+    if row["recipient_name"] == EMPTY_NAME:
+        ident = uuid.uuid4()
     address_fp = generate_fingerprint(row["recipient_address"])
     return make_entity_id(
         row["recipient_country"],
-        row["recipient_fingerprint"],
+        ident,
         address_fp or uuid.uuid4(),
     )
 
@@ -231,7 +219,9 @@ def _clean_recipient_address(full_address, *parts, country: str) -> str:
     full_address = full_address.rstrip(", " + country)
     # empty address
     if generate_fingerprint(full_address) is None:
-        return _get_country_name(country)
+        return (
+            get_country_name(country) or ""
+        )  # empty name should not happen as we are ensuring country code before
     # wtf
     m = re.match(address_postcode_pat, full_address)
     if m is not None:

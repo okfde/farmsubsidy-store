@@ -35,6 +35,7 @@ setup(
         "fastapi",
         "fingerprints",
         "followthemoney",
+        "ftm-geocode",
         "furl",
         "matplotlib",
         "pandas",
