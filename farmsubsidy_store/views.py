@@ -322,7 +322,7 @@ class LocationListView(BaseListView):
     model = models.Location
 
 
-class AggregationView(BaseListView):
+class AggregationView(RestrictedView):  # FIXME
     params_cls = BaseViewParams
     model = models.Aggregation
 

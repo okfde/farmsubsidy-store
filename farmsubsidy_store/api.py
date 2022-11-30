@@ -689,6 +689,7 @@ async def aggregation(
     request: Request,
     response: Response,
     commons: AggregationApiView.get_params_cls() = Depends(),
+    is_authenticated: bool = Depends(get_authenticated),
 ):
     """
     Aggregate numbers for whatever filter criterion
@@ -708,7 +709,9 @@ async def aggregation(
     }
     ```
     """
-    return AggregationApiView().get(request, response, **commons.dict())
+    return AggregationApiView().get(
+        request, response, is_authenticated, **commons.dict()
+    )
 
 
 # raw sql
