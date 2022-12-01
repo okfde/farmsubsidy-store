@@ -1,10 +1,13 @@
 import re
+import secrets
 from enum import Enum
-from typing import List, Union
+from typing import List, Optional, Union
 
 from cachelib import redis
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from followthemoney.util import make_entity_id as make_id
 from furl import furl
@@ -17,17 +20,42 @@ from farmsubsidy_store.logging import get_logger
 CSV = views.OutputFormat.csv
 EXPORT = views.OutputFormat.export
 
-app = FastAPI(title="Farmsubsidy.org API", redoc_url="/")
+optional_auth = HTTPBasic(auto_error=False)
+strict_auth = HTTPBasic(auto_error=True)
+
+
+def get_authenticated(
+    credentials: Optional[HTTPBasicCredentials] = Depends(optional_auth),
+) -> bool:
+    if credentials is None:
+        return False
+    username, password = settings.API_BASIC_AUTH.split(":")
+    return secrets.compare_digest(
+        username, credentials.username
+    ) and secrets.compare_digest(password, credentials.password)
+
+
+def require_authenticated(
+    credentials: HTTPBasicCredentials = Depends(strict_auth),
+) -> bool:
+    return get_authenticated(credentials)
+
 
 origins = [
     "http://localhost:3000",
     settings.ALLOWED_ORIGIN,
 ]
+app = FastAPI(
+    title="Farmsubsidy.org API",
+    redoc_url="/",
+    dependencies=[Depends(get_authenticated)],
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_methods=["GET"],
-    allow_headers=["*"],
+    allow_methods=["OPTIONS", "GET"],
+    allow_headers=["Authorization"],
+    allow_credentials=True,
 )
 
 log = get_logger(__name__)
@@ -53,6 +81,7 @@ if settings.DEBUG:
 
 
 class ApiResultMeta(BaseModel):
+    authenticated: bool = False
     page: int = 1
     item_count: int = 0
     url: str
@@ -65,15 +94,23 @@ class ApiResultMeta(BaseModel):
 
 
 class ApiView(views.BaseListView):
-    def get(self, request, response, **params):
+    def get(
+        self,
+        request: Request,
+        response: Response,
+        is_authenticated: Optional[bool] = False,
+        **params,
+    ):
+        log.debug("Auth", authenticated=is_authenticated)
         try:
-            query = self.get_query(**params)
+            query = self.get_query(is_authenticated=is_authenticated, **params)
             df = None
 
             if self.output_format == EXPORT:
                 export_path = self.get_export(**params)
                 export_url = furl(request.base_url) / export_path
                 return {
+                    "authenticated": is_authenticated,
                     "item_count": self.query.count,
                     "limit": self.limit,
                     "url": str(request.url),
@@ -83,7 +120,7 @@ class ApiView(views.BaseListView):
 
             if cache is not None:
                 cache_prefix = "csv" if self.output_format == CSV else "view"
-                cache_key = make_id(cache_prefix, str(query))
+                cache_key = make_id(cache_prefix, str(query), int(is_authenticated))
                 cached_results = cache.get(cache_key)
                 if cached_results:
                     log.info(
@@ -131,6 +168,7 @@ class ApiView(views.BaseListView):
 
             # json response
             results = {
+                "authenticated": is_authenticated,
                 "page": self.page,
                 "limit": self.limit,
                 "item_count": self.query.count,
@@ -150,12 +188,17 @@ class ApiView(views.BaseListView):
 
         except Exception as e:
             response.status_code = 400
-            return {"error": str(e), "url": str(request.url)}
+            return {
+                "error": str(e),
+                "url": str(request.url),
+                "query": self.params,
+                "authenticated": is_authenticated,
+            }
 
     def get_limit(self, limit, **params):
         # allow higher for secret api key (used by nextjs server side calls)
-        api_key = params.pop("api_key", None)
-        if api_key == settings.API_KEY:
+        api_key = params.pop("api_key", "")
+        if secrets.compare_digest(api_key, settings.API_KEY):
             return limit
         return super().get_limit(limit)
 
@@ -248,6 +291,7 @@ async def payments(
     request: Request,
     response: Response,
     commons: PaymentApiView.get_params_cls() = Depends(),
+    is_authenticated: bool = Depends(get_authenticated),
 ):
     """
     Get a list of `Payment` object based on filters.
@@ -280,7 +324,7 @@ async def payments(
     }
     ```
     """
-    return PaymentApiView().get(request, response, **commons.dict())
+    return PaymentApiView().get(request, response, is_authenticated, **commons.dict())
 
 
 @app.get(
@@ -290,6 +334,7 @@ async def recipients(
     request: Request,
     response: Response,
     commons: RecipientApiView.get_params_cls() = Depends(),
+    is_authenticated: bool = Depends(get_authenticated),
 ):
     """
     Get a list of `Recipient` objects based on filters.
@@ -355,7 +400,7 @@ async def recipients(
     }
     ```
     """
-    return RecipientApiView().get(request, response, **commons.dict())
+    return RecipientApiView().get(request, response, is_authenticated, **commons.dict())
 
 
 @app.get(
@@ -366,6 +411,7 @@ async def recipients_base(
     request: Request,
     response: Response,
     commons: RecipientBaseApiView.get_params_cls() = Depends(),
+    is_authenticated: bool = Depends(get_authenticated),
 ):
     """
     A stripped down version of `Recipients` but only returning recipients `id`,
@@ -393,7 +439,9 @@ async def recipients_base(
     }
     ```
     """
-    return RecipientBaseApiView().get(request, response, **commons.dict())
+    return RecipientBaseApiView().get(
+        request, response, is_authenticated, **commons.dict()
+    )
 
 
 @app.get(SchemeApiView.endpoint, response_model=SchemeApiView.get_response_model())
@@ -607,6 +655,7 @@ async def recipients_autocomplete(
     request: Request,
     response: Response,
     commons: RecipientAutocompleteApiView.get_params_cls() = Depends(),
+    is_authenticated: bool = Depends(get_authenticated),
 ):
     """
     Search for recipient names and get first matching results
@@ -626,7 +675,9 @@ async def recipients_autocomplete(
     }
     ```
     """
-    return RecipientAutocompleteApiView().get(request, response, **commons.dict())
+    return RecipientAutocompleteApiView().get(
+        request, response, is_authenticated, **commons.dict()
+    )
 
 
 @app.get(
@@ -637,6 +688,7 @@ async def aggregation(
     request: Request,
     response: Response,
     commons: AggregationApiView.get_params_cls() = Depends(),
+    is_authenticated: bool = Depends(get_authenticated),
 ):
     """
     Aggregate numbers for whatever filter criterion
@@ -656,7 +708,9 @@ async def aggregation(
     }
     ```
     """
-    return AggregationApiView().get(request, response, **commons.dict())
+    return AggregationApiView().get(
+        request, response, is_authenticated, **commons.dict()
+    )
 
 
 # raw sql
@@ -667,7 +721,11 @@ def check_query(query: str = ""):
 
 
 @app.get("/sql")
-async def raw_sql(response: Response, query: str = Depends(check_query)):
+async def raw_sql(
+    response: Response,
+    query: str = Depends(check_query),
+    is_authenticated: bool = Depends(require_authenticated),
+):
     """
     Execute raw sql queries. Returns csv data.
 
@@ -692,3 +750,22 @@ async def raw_sql(response: Response, query: str = Depends(check_query)):
             return {"error": "Server error"}
     response.status_code = 400
     return {"error": "Invalid query"}
+
+
+class LoginResponse(BaseModel):
+    authenticated: bool = False
+
+
+@app.get("/login", response_model=LoginResponse)
+async def login(
+    is_authenticated: bool = Depends(require_authenticated),
+    next_url: Optional[str] = None,
+):
+    """
+    Log in via basic auth credentials.
+    Optionally redirect to `next_url` (no matter if login is successful or not!)
+    Otherwise return authenticated status.
+    """
+    if next_url is not None:
+        return RedirectResponse(url=next_url, status_code=status.HTTP_302_FOUND)
+    return {"authenticated": is_authenticated}

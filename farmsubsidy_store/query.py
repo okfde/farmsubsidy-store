@@ -2,7 +2,7 @@ from functools import cached_property, lru_cache
 from typing import Any, Iterable, Iterator, Optional, Union
 
 import pandas as pd
-from banal import is_listish, as_bool
+from banal import as_bool, is_listish
 
 from . import settings
 from .exceptions import InvalidQuery

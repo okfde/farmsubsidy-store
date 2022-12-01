@@ -90,14 +90,14 @@ class QueryTestCase(TestCase):
     def test_query_having(self):
         q = (
             Query()
-            .select("country", "sum(amount) as amount_sum")
+            .select("country", "sum(amount) AS amount_sum")
             .where(year=2019)
             .group_by("country")
             .having(amount_sum__gte=100)
         )
         self.assertEqual(
             str(q),
-            "SELECT country, sum(amount) as amount_sum FROM farmsubsidy WHERE year = '2019' GROUP BY country HAVING amount_sum >= '100'",
+            "SELECT country, sum(amount) AS amount_sum FROM farmsubsidy WHERE year = '2019' GROUP BY country HAVING amount_sum >= '100'",
         )
 
         # no having if no group by
@@ -158,10 +158,20 @@ class QueryTestCase(TestCase):
         q = RecipientNameQuery()
         self.assertEqual(
             str(q),
-            "SELECT distinct recipient_id as id, recipient_name as name, recipient_country FROM farmsubsidy",
+            "SELECT distinct recipient_id AS id, recipient_name AS name, recipient_country FROM farmsubsidy",
         )
         q = RecipientNameQuery().where(country="DE")
         self.assertEqual(
             str(q),
-            "SELECT distinct recipient_id as id, recipient_name as name, recipient_country FROM farmsubsidy WHERE country = 'DE'",
+            "SELECT distinct recipient_id AS id, recipient_name AS name, recipient_country FROM farmsubsidy WHERE country = 'DE'",
+        )
+
+    def test_query_restricted_view(self):
+        """make sure years overwrite year"""
+        q = Query().where(year=2014)
+        # this is what the api actually does, and as we have AND this is safe:
+        q = q.where(years__in=[2020, 2021])
+        self.assertEqual(
+            str(q),
+            "SELECT * FROM farmsubsidy WHERE year = '2014' AND years IN ('2020', '2021')",
         )

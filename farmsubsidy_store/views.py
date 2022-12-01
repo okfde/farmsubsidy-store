@@ -166,7 +166,7 @@ class BaseListView:
         self.has_prev = self.page > 1
         return self.data
 
-    def apply_params(self, **params) -> dict:
+    def apply_params(self, is_authenticated: Optional[bool] = False, **params) -> dict:
         if hasattr(self, "params"):  # might be already called
             return self.params
         params = self.params_cls(**params)
@@ -176,6 +176,7 @@ class BaseListView:
         self.output_format = params.pop("output")
         self.limit = self.get_limit(params.pop("limit", None), **params)
         self.params = params
+        self.is_authenticated = is_authenticated
         return params
 
     def get_limit(self, limit: Optional[int] = None, **params) -> int:
@@ -189,13 +190,11 @@ class BaseListView:
             return start, end
         return None, None
 
-    def get_query(self, **params) -> Query:
+    def get_query(self, is_authenticated: Optional[bool] = False, **params) -> Query:
         if not hasattr(self, "params"):
-            self.apply_params(**params)
+            self.apply_params(is_authenticated=is_authenticated, **params)
         query = (
-            self.get_initial_query()
-            .where(**self.where_params)
-            .having(**self.having_params)
+            self.model.select().where(**self.where_params).having(**self.having_params)
         )
         if self.order_by is not None:
             order_by = self.order_by
@@ -206,9 +205,6 @@ class BaseListView:
             query = query.order_by(order_by, ascending=ascending)
         start, end = self.get_slice(self.page, self.limit)
         return query[start:end]
-
-    def get_initial_query(self) -> Query:
-        return self.model.select()
 
     def get_results_from_df(self, df: pd.DataFrame):
         # use a previously cached df and apply ordering and slicing on it
@@ -266,26 +262,40 @@ class BaseListView:
         df.fillna("").to_csv(fpath, index=False)
 
 
-class PaymentListView(BaseListView):
+class RestrictedView(BaseListView):
+    """
+    restrict query results to last two years due to legal (lex farmsubsidy)
+    """
+
+    def get_query(self, *args, **kwargs) -> Query:
+        query = super().get_query(*args, **kwargs)
+        if not self.is_authenticated:
+            query = query.where(year__in=settings.PUBLIC_YEARS)
+        return query
+
+
+class PaymentListView(RestrictedView):
     model = models.Payment
 
 
-class RecipientListView(BaseListView):
+class RecipientListView(RestrictedView):
     params_cls = AggregatedViewParams
     model = models.Recipient
 
 
-class RecipientBaseView(RecipientListView):
-    """improved query performance because no string aggregation happens),
-    useful for "get top 5 of country X" but accepts the same parameters as the
-    big list view, so sorting for schemes or searching for names/fingerprints
-    is still possible!
+class RecipientBaseView(RestrictedView):
+    """
+    improved query performance because no string aggregation happens, useful
+    for "get top 5 of country X" but accepts the same parameters as the big
+    list view, so sorting for schemes or searching for names/fingerprints is
+    still possible even though these values don't appear in the results
     """
 
+    params_cls = AggregatedViewParams
     model = models.RecipientBase
 
 
-class RecipientNameView(BaseListView):
+class RecipientNameView(RestrictedView):
     """quick autocomplete view"""
 
     max_limit = 10
@@ -312,7 +322,7 @@ class LocationListView(BaseListView):
     model = models.Location
 
 
-class AggregationView(BaseListView):
+class AggregationView(RestrictedView):  # FIXME
     params_cls = BaseViewParams
     model = models.Aggregation
 

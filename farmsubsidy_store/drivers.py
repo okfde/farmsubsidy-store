@@ -76,7 +76,7 @@ class Clickhouse(Driver):
         `country`                 {country} NOT NULL,
         `year`                    {year} NOT NULL,
         `recipient_id`            FixedString(40) NOT NULL,
-        `recipient_name`          String NULL,
+        `recipient_name`          String NOT NULL,
         `recipient_fingerprint`   String NOT NULL,
         `recipient_address`       String NULL,
         `recipient_country`       {country} NOT NULL,

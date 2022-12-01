@@ -1,9 +1,11 @@
+import re
 import uuid
 from functools import lru_cache
 from typing import Optional
 
 import countrynames
 import pandas as pd
+import pycountry
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
 from normality import normalize
@@ -78,7 +80,7 @@ ADDRESS_PARTS = (
 )
 
 
-LRU = 1024 * 1000
+LRU = 1_000_000
 
 
 @lru_cache(LRU)
@@ -158,8 +160,15 @@ def clean_source(
 
 
 @lru_cache(LRU)
-def _get_country_code(value):
+def _get_country_code(value: str) -> str:
     return countrynames.to_code(value)
+
+
+@lru_cache(LRU)
+def _get_country_name(code: str) -> str:
+    # at this time we are sure the code is valid
+    country = pycountry.countries.get(alpha_2=code)
+    return country.name
 
 
 def validate_country(
@@ -206,20 +215,41 @@ def clean_recipient_id(row: pd.Series) -> str:
     )
 
 
+address_xpath_pat = re.compile(r".*data='([\w\.\s]+)'.*")
+address_postcode_pat = re.compile(r".*\s(\d+\.\d).*")
+
+
 @lru_cache(LRU)
-def _clean_recipient_address(full_address, *parts) -> str:
+def _clean_recipient_address(full_address, *parts, country: str) -> str:
     parts = (p.strip() for p in parts if p is not None and p.strip())
     if not full_address:
-        return ", ".join(parts)
+        full_address = ", ".join(parts)
+    else:
+        parts = (p for p in parts if p not in full_address)
+        full_address = ", ".join([full_address, *parts])
 
-    parts = (p for p in parts if p not in full_address)
-    return ", ".join([full_address, *parts])
+    full_address = full_address.rstrip(", " + country)
+    # empty address
+    if generate_fingerprint(full_address) is None:
+        return _get_country_name(country)
+    # wtf
+    m = re.match(address_postcode_pat, full_address)
+    if m is not None:
+        res = m.groups()[0]
+        full_address = full_address.replace(res, res.split(".", 1)[0])
+    if "xpath" in full_address:
+        m = re.match(address_xpath_pat, full_address)
+        if m is not None:
+            full_address = m.groups()[0]
+    return full_address
 
 
 def clean_recipient_address(row: pd.Series) -> str:
     parts = [row.get(p) for p in ADDRESS_PARTS]
     full_address = row.get("recipient_address")
-    return _clean_recipient_address(full_address, *parts)
+    return _clean_recipient_address(
+        full_address, *parts, country=row["recipient_country"]
+    )
 
 
 def clean_recipient_country(
