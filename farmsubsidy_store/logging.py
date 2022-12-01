@@ -76,7 +76,7 @@ def _configure(level=logging.INFO, out=sys.stdout):
     error_handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(logging.INFO)
     # check to prevent adding duplicate handlers
     if not root_logger.handlers:
         root_logger.addHandler(out_handler)
