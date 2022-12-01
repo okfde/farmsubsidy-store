@@ -1,6 +1,7 @@
 export DRIVER ?= clickhouse
 export DATA_ROOT ?= `pwd`/data
 export LOG_LEVEL ?= info
+export DATA_DOMAIN = https://$(API_BASIC_AUTH)@data.farmsubsidy.org
 
 all: init download clean import
 
@@ -12,9 +13,9 @@ init:
 
 download:
 	mkdir -p $(DATA_ROOT)/src/latest
-	wget -4 -P $(DATA_ROOT)/src/latest/ -r -l1 -H -nd -N -np -A "gz" -e robots=off https://data.farmsubsidy.org/latest/
+	wget -4 -P $(DATA_ROOT)/src/latest/ -r -l1 -H -nd -N -np -A "gz" -e robots=off $(DATA_DOMAIN)/latest/
 	mkdir -p $(DATA_ROOT)/src/flat
-	wget -4 -P $(DATA_ROOT)/src/flat/ -r -l2 -H -nd -N -np -A "gz" -e robots=off https://data.farmsubsidy.org/Flat/
+	wget -4 -P $(DATA_ROOT)/src/flat/ -r -l2 -H -nd -N -np -A "gz" -e robots=off $(DATA_DOMAIN)/Flat/
 
 clean:
 	mkdir -p $(DATA_ROOT)/cleaned
@@ -24,6 +25,10 @@ clean:
 	fscli clean -i $(DATA_ROOT)/src/latest/lt_2015.csv.gz --currency=LTL | gzip > $(DATA_ROOT)/cleaned/lt_2015.csv.cleaned.csv.gz
 	fscli clean -i $(DATA_ROOT)/src/latest/pl_2015.csv.gz --currency=EUR | gzip > $(DATA_ROOT)/cleaned/pl_2015.csv.cleaned.csv.gz
 	# parallel "fscli clean -i {} -h recipient_name,recipient_street1,recipient_street2,recipient_postcode,recipient_city,amount,amount_original,scheme,year,country --ignore-errors | gzip > $(DATA_ROOT)/cleaned_flat/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/flat/*.gz
+
+download_cleaned:
+	mkdir -p $(DATA_ROOT)/cleaned
+	wget -4 -P $(DATA_ROOT)/cleaned/ -r -l1 -H -nd -N -np -A "gz" -e robots=off $(DATA_DOMAIN)/cleaned/
 
 import: init
 	@if [ "$(DRIVER)" = "clickhouse" ]; then \
