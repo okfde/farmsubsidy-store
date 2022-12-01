@@ -54,9 +54,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_methods=["OPTIONS", "GET"],
-    allow_headers=["*"],
+    allow_headers=["Authorization"],
     allow_credentials=True,
-    expose_headers=["*"],
 )
 
 log = get_logger(__name__)
