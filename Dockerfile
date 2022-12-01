@@ -1,5 +1,7 @@
 FROM python:3.10
 
+RUN apt-get update && apt-get install parallel
+
 COPY farmsubsidy_store /app/farmsubsidy_store
 COPY setup.py /app/setup.py
 COPY README.md /app/README.md
