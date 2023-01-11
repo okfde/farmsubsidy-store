@@ -99,6 +99,62 @@ The cleaning script in the `Makefile` requires [GNU Parallel](https://www.gnu.or
 
 For *clickhouse*, parallel importing is also possible.
 
+## API
+
+spin up dev:
+
+    make api
+
+env vars:
+
+`ALLOWED_ORIGIN`=<origin domain for cors>
+`API_KEY`=<secret api key for frontend app to allow bigger exports>
+`API_HTPASSWD`=<path to nginx .htpasswd>
+`API_TOKEN_SECRET`="secret sign token"   # openssl rand -hex 32
+`API_TOKEN_LIFETIME`=<token lifetime in minutes>
+
+### authentication:
+
+Some data (everything older than the last two years) is hidden for anonymous
+requests. Therefore, users are managed via a `.htpasswd` file from which the
+api can create JWT tokens to authenticate the frontend app. One can check
+`/authenticated` with an `Authorization`-Header in the form of `Bearer <jwt token>`
+to get the current auth status for the token.
+
+create a `.htpasswd` file with bcrypt encryption and set env var `API_HTPASSWD`
+to the path of this file.
+
+    htpasswd -cbB .htpasswd testuser testpw
+
+The api uses this as a user database. Login can performed via username /
+password to the POST `/login` endpoint.
+
+```bash
+curl -X 'POST' \                                   (feature/auth✱)
+  'http://127.0.0.1:8000/login' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'username=testuser&password=testpw'
+```
+
+That returns a [JWT](https://jwt.io/) token valid for `API_TOKEN_LIFETIME`
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0dXNlciIsImV4cCI6MTY3MzUzMjI1MH0.vybbse9bNaz1TJJvOJXquh0zSmKGWLhnrBCfkf-2uCY",
+  "token_type": "bearer"
+}
+```
+
+Which can be used for subsequent requests then:
+
+```bash
+curl -X 'GET' \                                    (feature/auth✱)
+  'http://127.0.0.1:8000/authenticated' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0dXNlciIsImV4cCI6MTY3MzUzMjI1MH0.vybbse9bNaz1TJJvOJXquh0zSmKGWLhnrBCfkf-2uCY'
+```
+
 
 ## code style
 
