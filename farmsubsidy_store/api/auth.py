@@ -10,10 +10,9 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-from ..settings import API_HTPASSWD, API_TOKEN_SECRET
+from ..settings import API_HTPASSWD, API_TOKEN_LIFETIME, API_TOKEN_SECRET
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
 USERS = pd.read_csv(API_HTPASSWD, names=("username", "password"), delimiter=":")
 USERS.index = USERS["username"]
 USERS = USERS.T.to_dict()
@@ -107,7 +106,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=API_TOKEN_LIFETIME)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
