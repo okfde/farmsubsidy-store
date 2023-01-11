@@ -3,9 +3,7 @@ import uuid
 from functools import lru_cache
 from typing import Optional
 
-import countrynames
 import pandas as pd
-import pycountry
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
 from normality import normalize
@@ -14,7 +12,7 @@ from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
 from .exceptions import InvalidAmount, InvalidCountry, InvalidCurrency, InvalidSource
 from .logging import get_logger
 from .schemes import guess_scheme
-from .util import clear_lru
+from .util import clear_lru, get_country_code, get_country_name
 from .util import handle_error as _handle_error
 
 log = get_logger(__name__)
@@ -159,22 +157,10 @@ def clean_source(
     return df.applymap(_clean)
 
 
-@lru_cache(LRU)
-def _get_country_code(value: str) -> str:
-    return countrynames.to_code(value)
-
-
-@lru_cache(LRU)
-def _get_country_name(code: str) -> str:
-    # at this time we are sure the code is valid
-    country = pycountry.countries.get(alpha_2=code)
-    return country.name
-
-
 def validate_country(
     value: str, bulk_errors: set, do_raise: bool, fpath: Optional[str] = None
 ) -> str:
-    res = _get_country_code(value)
+    res = get_country_code(value)
     if res is None:
         handle_error(
             log,
@@ -231,7 +217,7 @@ def _clean_recipient_address(full_address, *parts, country: str) -> str:
     full_address = full_address.rstrip(", " + country)
     # empty address
     if generate_fingerprint(full_address) is None:
-        return _get_country_name(country)
+        return get_country_name(country)
     # wtf
     m = re.match(address_postcode_pat, full_address)
     if m is not None:

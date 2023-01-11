@@ -3,7 +3,6 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from .drivers import get_driver
-from .enrich import COUNTRYNAMES
 from .query import (
     AggregationQuery,
     CountryQuery,
@@ -16,6 +15,7 @@ from .query import (
     YearQuery,
 )
 from .schemes import DESCRIPTIONS
+from .util import get_country_name
 
 
 class BaseORM:
@@ -188,7 +188,7 @@ class Country(BaseORM, BaseModel):
         return self.country
 
     def __init__(self, **data):
-        data["name"] = COUNTRYNAMES[data["country"]]
+        data["name"] = get_country_name(data["country"])
         super().__init__(**data)
 
     def get_recipients(self) -> RecipientQuery:
