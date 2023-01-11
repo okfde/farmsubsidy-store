@@ -4,41 +4,21 @@ from enum import Enum
 from typing import List, Optional, Union
 
 from cachelib import redis
-from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from followthemoney.util import make_entity_id as make_id
 from furl import furl
 from pydantic import BaseModel, create_model
 
-from farmsubsidy_store import settings, views
+from farmsubsidy_store import settings
 from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.logging import get_logger
 
+from . import auth, views
+
 CSV = views.OutputFormat.csv
 EXPORT = views.OutputFormat.export
-
-optional_auth = HTTPBasic(auto_error=False)
-strict_auth = HTTPBasic(auto_error=True)
-
-
-def get_authenticated(
-    credentials: Optional[HTTPBasicCredentials] = Depends(optional_auth),
-) -> bool:
-    if credentials is None:
-        return False
-    username, password = settings.API_BASIC_AUTH.split(":")
-    return secrets.compare_digest(
-        username, credentials.username
-    ) and secrets.compare_digest(password, credentials.password)
-
-
-def require_authenticated(
-    credentials: HTTPBasicCredentials = Depends(strict_auth),
-) -> bool:
-    return get_authenticated(credentials)
 
 
 origins = [
@@ -48,7 +28,6 @@ origins = [
 app = FastAPI(
     title="Farmsubsidy.org API",
     redoc_url="/",
-    dependencies=[Depends(get_authenticated)],
 )
 app.add_middleware(
     CORSMiddleware,
@@ -291,7 +270,7 @@ async def payments(
     request: Request,
     response: Response,
     commons: PaymentApiView.get_params_cls() = Depends(),
-    is_authenticated: bool = Depends(get_authenticated),
+    is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
     Get a list of `Payment` object based on filters.
@@ -334,7 +313,7 @@ async def recipients(
     request: Request,
     response: Response,
     commons: RecipientApiView.get_params_cls() = Depends(),
-    is_authenticated: bool = Depends(get_authenticated),
+    is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
     Get a list of `Recipient` objects based on filters.
@@ -411,7 +390,7 @@ async def recipients_base(
     request: Request,
     response: Response,
     commons: RecipientBaseApiView.get_params_cls() = Depends(),
-    is_authenticated: bool = Depends(get_authenticated),
+    is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
     A stripped down version of `Recipients` but only returning recipients `id`,
@@ -655,7 +634,7 @@ async def recipients_autocomplete(
     request: Request,
     response: Response,
     commons: RecipientAutocompleteApiView.get_params_cls() = Depends(),
-    is_authenticated: bool = Depends(get_authenticated),
+    is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
     Search for recipient names and get first matching results
@@ -688,7 +667,7 @@ async def aggregation(
     request: Request,
     response: Response,
     commons: AggregationApiView.get_params_cls() = Depends(),
-    is_authenticated: bool = Depends(get_authenticated),
+    is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
     Aggregate numbers for whatever filter criterion
@@ -724,7 +703,7 @@ def check_query(query: str = ""):
 async def raw_sql(
     response: Response,
     query: str = Depends(check_query),
-    is_authenticated: bool = Depends(require_authenticated),
+    is_authenticated: bool = Depends(auth.require_authenticated),
 ):
     """
     Execute raw sql queries. Returns csv data.
@@ -746,26 +725,17 @@ async def raw_sql(
                 cache.set(cache_key, data)
             return Response(content=data, media_type="text/csv")
         except Exception:
-            response.status_code = 503
+            response.status_code = 500
             return {"error": "Server error"}
     response.status_code = 400
     return {"error": "Invalid query"}
 
 
-class LoginResponse(BaseModel):
-    authenticated: bool = False
+@app.post("/login", response_model=auth.Token)
+async def login_for_access_token(form_data: auth.OAuth2PasswordRequestForm = Depends()):
+    return auth.login_for_access_token(form_data)
 
 
-@app.get("/login", response_model=LoginResponse)
-async def login(
-    is_authenticated: bool = Depends(require_authenticated),
-    next_url: Optional[str] = None,
-):
-    """
-    Log in via basic auth credentials.
-    Optionally redirect to `next_url` (no matter if login is successful or not!)
-    Otherwise return authenticated status.
-    """
-    if next_url is not None:
-        return RedirectResponse(url=next_url, status_code=status.HTTP_302_FOUND)
-    return {"authenticated": is_authenticated}
+@app.get("/authenticated", response_model=auth.Authenticated)
+async def auth_status(is_authenticated: bool = Depends(auth.get_authenticated)):
+    return auth.Authenticated(status=is_authenticated)

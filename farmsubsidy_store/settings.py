@@ -38,9 +38,11 @@ LRU_QUERY_CACHE_SIZE = 1024 * 1000  # 1MB
 
 API_CACHE = as_bool(get_env("API_CACHE"))
 REDIS_URL = get_env("REDIS_URL", "redis://localhost:6379")
-ALLOWED_ORIGIN = get_env("API_ALLOWED_ORIGIN", "https://sql.farmsubsidy.org")
+ALLOWED_ORIGIN = get_env("API_ALLOWED_ORIGIN", "https://farmsubsidy.org")
 API_KEY = get_env("API_KEY", "secret-api-key")
-API_BASIC_AUTH = get_env("API_BASIC_AUTH", "farmsubsidy:test")
+API_HTPASSWD = get_env("API_HTPASSWD", os.path.join(DATA_ROOT, ".htpasswd"))
+API_TOKEN_SECRET = get_env("API_TOKEN_SECRET", "fsscrt")
+
 PUBLIC_YEARS = get_env("API_PUBLIC_YEARS", "2020,2021").split(",")
 EXPORT_DIRECTORY = get_env("EXPORT_DIRECTORY", os.path.join(DATA_ROOT, "exports"))
 EXPORT_PUBLIC_PATH = get_env("EXPORT_PUBLIC_PATH", "/exports")
