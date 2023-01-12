@@ -50,10 +50,14 @@ api:  # for developement
 	DEBUG=1 uvicorn farmsubsidy_store.api.app:app --reload
 
 install.dev:
-	pip install coverage nose moto pytest pytest-cov black flake8 isort ipdb
+	pip install coverage nose moto pytest pytest-cov black flake8 isort ipdb mypy
 
-test:
+test: install.dev
+	pip install types-python-jose
+	pip install types-passlib
+	pip install pandas-stubs
 	pytest -s --cov=farmsubsidy_store --cov-report term-missing
+	mypy farmsubsidy_store
 
 
 docker:

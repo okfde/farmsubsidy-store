@@ -1,0 +1,2 @@
+include farmsubsidy_store/currency_rates.json
+include farmsubsidy_store/schemes.csv
