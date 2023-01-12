@@ -1,3 +1,5 @@
+from tests.util import ClickhouseTestCase
+
 from farmsubsidy_store.model import Country, Payment, Recipient, Scheme, Year
 from farmsubsidy_store.query import (
     CountryQuery,
@@ -6,7 +8,6 @@ from farmsubsidy_store.query import (
     SchemeQuery,
     YearQuery,
 )
-from tests.util import ClickhouseTestCase
 
 
 class ClickhouseModelTestCase(ClickhouseTestCase):
@@ -137,6 +138,7 @@ class ClickhouseModelTestCase(ClickhouseTestCase):
                 "name": "II.6",
                 "years": [2019],
                 "countries": ["LU"],
+                "description": None,
                 "total_payments": 109,
                 "total_recipients": 109,
                 "amount_sum": 536547.34,
