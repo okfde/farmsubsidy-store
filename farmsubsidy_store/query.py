@@ -1,11 +1,13 @@
 from functools import cached_property, lru_cache
-from typing import Any, Generator, Iterable
+from typing import Any, Generator, Iterable, TypeVar
 
 import pandas as pd
 from banal import as_bool, is_listish
 
 from . import settings
 from .exceptions import InvalidQuery
+
+Q = TypeVar("Q", bound="Query")
 
 
 @lru_cache(settings.LRU_QUERY_CACHE_SIZE)
@@ -82,7 +84,7 @@ class Query:
         df = self.execute(query)
         return int(df["count"][0])
 
-    def execute(self, query: "Query" | str | None = None) -> pd.DataFrame:
+    def execute(self, query: Q | str | None = None) -> pd.DataFrame:
         """actually return results from `self.driver`"""
         if self.driver is None:
             raise InvalidQuery("No driver for this query.")

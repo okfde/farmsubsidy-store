@@ -8,7 +8,7 @@ from clickhouse_driver import Client
 
 from . import enums, settings
 from .exceptions import ImproperlyConfigured
-from .query import Query
+from .query import Q, Query
 
 # don't show clickhouse numpy warnings:
 logging.getLogger("clickhouse_driver.columns.service").setLevel(logging.ERROR)
@@ -64,7 +64,7 @@ class Driver:
     def execute(self, *args, **kwargs):
         return self.conn.execute(*args, **kwargs)
 
-    def select(self, query_cls: Query | None = Query, *args, **kwargs) -> Query:
+    def select(self, query_cls: Q | None = Query, *args, **kwargs) -> Query:
         return query_cls(driver=self, *args, **kwargs)
 
 
@@ -177,7 +177,7 @@ class Clickhouse(Driver):
         res = self.conn.insert_dataframe("INSERT INTO %s VALUES" % self.table, df)
         return res
 
-    def query(self, query: Query) -> pd.DataFrame:
+    def query(self, query: Q) -> pd.DataFrame:
         query = str(query)
         return self.conn.query_dataframe(query)
 
