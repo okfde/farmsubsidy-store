@@ -1,12 +1,11 @@
 import re
-import uuid
 from functools import lru_cache
-from typing import Optional
 
 import pandas as pd
+import shortuuid
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
-from normality import normalize
+from normality import collapse_spaces, normalize
 
 from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
 from .exceptions import InvalidAmount, InvalidCountry, InvalidCurrency, InvalidSource
@@ -19,14 +18,14 @@ log = get_logger(__name__)
 
 
 def handle_error(log, e, do_raise, **kwargs):
-    bulk_errors: Optional[set] = kwargs.pop("bulk_errors", None)
+    bulk_errors: set | None = kwargs.pop("bulk_errors", None)
     if bulk_errors is None:
         _handle_error(log, e, do_raise, **kwargs)
         return
     bulk_errors.add(str(e))
 
 
-UNIQUE = ["year", "country", "recipient_id", "scheme", "amount"]
+UNIQUE = ["year", "country", "recipient_id", "scheme_id", "amount"]
 
 
 CLEAN_COLUMNS = (
@@ -89,11 +88,11 @@ def generate_fingerprint(*parts):
 def validate_source(
     df: pd.DataFrame,
     bulk_errors: set,
-    year: Optional[str] = None,
-    country: Optional[str] = None,
-    currency: Optional[str] = None,
-    fpath: Optional[str] = None,
-    do_raise: Optional[bool] = True,
+    year: str | None = None,
+    country: str | None = None,
+    currency: str | None = None,
+    fpath: str | None = None,
+    do_raise: bool | None = True,
 ) -> pd.DataFrame:
     """check if source dataframe has at least all required columns"""
     if "year" not in df:
@@ -134,7 +133,7 @@ def validate_source(
 
 
 def clean_source(
-    df: pd.DataFrame, year: Optional[str] = None, country: Optional[str] = None
+    df: pd.DataFrame, year: str | None = None, country: str | None = None
 ) -> pd.DataFrame:
     """do a bit string cleaning, insert year & country data if not present"""
 
@@ -158,7 +157,7 @@ def clean_source(
 
 
 def validate_country(
-    value: str, bulk_errors: set, do_raise: bool, fpath: Optional[str] = None
+    value: str, bulk_errors: set, do_raise: bool, fpath: str | None = None
 ) -> str:
     res = get_country_code(value)
     if res is None:
@@ -174,12 +173,26 @@ def validate_country(
 
 
 @lru_cache(LRU)
-def clean_recipient_name(name: str):
-    """fingerprint is None for empty names or names only with special chars (***)"""
+def _clean_recipient_name(
+    name: str, country: str, ident: str | None = None
+) -> str | None:
     fp = generate_fingerprint(name)
-    if fp is None:
-        return
-    return name
+    if fp is not None:
+        return collapse_spaces(name)
+    if generate_fingerprint(ident):
+        return " ".join((country, ident))
+
+
+# don't cache this call!
+def clean_recipient_name(row: pd.Series) -> str:
+    """generate a cleaned name or, if empty, take a original id (if any) or do a random one"""
+    name = row["recipient_name"]
+    country = row["country"]
+    ident = row.get("recipient_id")  # here we have the original id from source, if any
+    name = _clean_recipient_name(name, country, ident)
+    if name is not None:
+        return name
+    return f"Anonymous {shortuuid.uuid()}"
 
 
 @lru_cache(LRU)
@@ -189,15 +202,12 @@ def make_entity_id(*parts) -> str:
 
 def clean_recipient_id(row: pd.Series) -> str:
     """deduplicate recipients via generated id from country, name, address"""
-    name = row["recipient_name"]
-    if name is None:
-        # anonymous
-        name = uuid.uuid4()
-    address_fp = generate_fingerprint(row["recipient_address"])
+    fp = row["recipient_fingerprint"]
+    assert fp is not None and fp != "", dict(row)
     return make_entity_id(
         row["recipient_country"],
         row["recipient_fingerprint"],
-        address_fp or uuid.uuid4(),
+        generate_fingerprint(row["recipient_address"]) or shortuuid.uuid(),
     )
 
 
@@ -239,7 +249,7 @@ def clean_recipient_address(row: pd.Series) -> str:
 
 
 def clean_recipient_country(
-    row: pd.Series, bulk_errors: set, do_raise: bool, fpath: Optional[str] = None
+    row: pd.Series, bulk_errors: set, do_raise: bool, fpath: str | None = None
 ) -> str:
     country = row.get("recipient_country", row.get("country"))
     return validate_country(country, bulk_errors, do_raise, fpath=fpath)
@@ -255,6 +265,7 @@ def clean_scheme(row: pd.Series) -> str:
                 row.get("scheme_2", ""),
             )
         ).strip()
+    scheme = collapse_spaces(scheme)
     return guess_scheme(scheme)
 
 
@@ -264,7 +275,7 @@ def clean_scheme_id(scheme: str) -> str:
 
 
 @lru_cache(LRU)
-def to_decimal(value: str, allow_empty: Optional[bool] = True) -> float:
+def to_decimal(value: str, allow_empty: bool | None = True) -> float:
     if value is None and not allow_empty:
         raise ValueError
     if "," in value:
@@ -278,7 +289,7 @@ def to_decimal(value: str, allow_empty: Optional[bool] = True) -> float:
 
 
 def clean_amount(
-    row: pd.Series, bulk_errors: set, do_raise: bool, fpath: Optional[str] = None
+    row: pd.Series, bulk_errors: set, do_raise: bool, fpath: str | None = None
 ) -> float:
     """
     Make sure amounts are properly formatted.  Replace "," with "." in amount
@@ -346,8 +357,9 @@ def apply_clean(
     df: pd.DataFrame,
     bulk_errors: set,
     do_raise: bool,
-    fpath: Optional[str] = None,
+    fpath: str | None = None,
 ) -> pd.DataFrame:
+
     funcs = {
         # column: clean_function
         "amount": lambda r: clean_amount(r, bulk_errors, do_raise, fpath),
@@ -387,10 +399,10 @@ def apply_clean(
 def clean(
     df: pd.DataFrame,
     ignore_errors: bool,
-    year: Optional[str] = None,
-    country: Optional[str] = None,
-    currency: Optional[str] = None,
-    fpath: Optional[str] = None,
+    year: str | None = None,
+    country: str | None = None,
+    currency: str | None = None,
+    fpath: str | None = None,
 ) -> pd.DataFrame:
     bulk_errors = set()
     df = drop_header_rows(df)
@@ -400,11 +412,11 @@ def clean(
     )
     if df is not None:
         df = clean_source(df, year, country)
-        df["recipient_name"] = df["recipient_name"].map(clean_recipient_name)
-        df["recipient_fingerprint"] = df["recipient_name"].map(generate_fingerprint)
         df["country"] = df["country"].map(
             lambda x: validate_country(x, bulk_errors, not ignore_errors, fpath)
         )
+        df["recipient_name"] = df.apply(clean_recipient_name, axis=1)
+        df["recipient_fingerprint"] = df["recipient_name"].map(generate_fingerprint)
         df = apply_clean(df, bulk_errors, do_raise=not ignore_errors, fpath=fpath)
         df = ensure_columns(df)
         df = df.drop_duplicates(subset=("pk",))

@@ -44,9 +44,62 @@ csv files (or input stream) always needs 1st row as header.
 
 ### clean
 
+**source data required columns**
+
+- country
+- year
+- recipient_name
+- amount
+- currency
+
+Although, country, currency and year could be set via command line during
+cleaning, but it is good practice to have it in the source csv.
+
+**additional columns that are taken if present**
+
+- recipient_id (*helps for deduping if source supplies an identifier*)
+- recipient_address
+- recipient_street
+- recipient_street1
+- recipient_street2
+- recipient_postcode
+- recipient_country
+- recipient_url (source url to original data platform?)
+- scheme (EU measurement)
+- scheme_name
+- scheme_code
+- scheme_code_short
+- scheme_description
+- scheme_1
+- scheme_2
+- amount_original
+- currency_original
+
+**output columns**
+
+- pk
+- country
+- year
+- recipient_id
+- recipient_name
+- recipient_fingerprint
+- recipient_address
+- recipient_country
+- recipient_url
+- scheme_id
+- scheme
+- scheme_code
+- scheme_description
+- amount
+- currency
+- amount_original
+- currency_original
+
+Options:
+
     fscli clean --help
 
-pass `--ignore-errors` to only log validateion errors but not fail during exceptions.
+pass `--ignore-errors` to only log validate on errors but not fail during exceptions.
 
     fscli clean --ignore-errors
 
