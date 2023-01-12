@@ -4,7 +4,7 @@ import os
 import secrets
 from enum import Enum
 from functools import cached_property
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 from banal import clean_dict
@@ -42,7 +42,7 @@ class ApiResult(BaseModel):
     next_url: str = None
     prev_url: str = None
     error: str = None
-    results: Optional[List[Dict[str, Any]]] = []
+    results: list[dict[str, Any]] | None = []
 
 
 class BaseView:
@@ -50,9 +50,7 @@ class BaseView:
     model = None
     params_cls = BaseViewParams
 
-    def __init__(
-        self, params: BaseViewParams, is_authenticated: Optional[bool] = False
-    ):
+    def __init__(self, params: BaseViewParams, is_authenticated: bool | None = False):
         self.params = params
         self.is_authenticated = is_authenticated
         self.ensure_limit()
@@ -206,7 +204,7 @@ class BaseView:
             to_csv(df, export_fpath)
         return settings.EXPORT_PUBLIC_PATH + "/" + export_file
 
-    def get_cache_key(self, prefix: Optional[str] = None) -> str:
+    def get_cache_key(self, prefix: str | None = None) -> str:
         prefix = prefix or self.params.output
         return make_id(prefix, int(self.is_authenticated), str(self.query))
 
@@ -215,7 +213,7 @@ class BaseView:
         return self.get_query()
 
     @cached_property
-    def where_params(self) -> Dict[str, Any]:
+    def where_params(self) -> dict[str, Any]:
         params = {}
         for k, v in self.params:
             if k in BaseFieldsParams.__fields__:
@@ -223,7 +221,7 @@ class BaseView:
         return clean_dict(params)
 
     @cached_property
-    def having_params(self) -> Dict[str, Any]:
+    def having_params(self) -> dict[str, Any]:
         params = {}
         for k, v in self.params:
             if k in AggregatedFieldsParams.__fields__:
@@ -234,7 +232,7 @@ class BaseView:
     def get_response_model(cls):
         return create_model(
             f"{cls.__name__}{cls.model.__name__}ApiResult",
-            results=(List[cls.model], []),
+            results=(list[cls.model], []),
             __base__=ApiResult,
         )
 

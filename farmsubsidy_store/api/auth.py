@@ -1,7 +1,6 @@
 # https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/
 
 from datetime import datetime, timedelta
-from typing import Optional, Union
 
 import pandas as pd
 from fastapi import Depends, HTTPException, status
@@ -29,7 +28,7 @@ class User(BaseModel):
 
 
 class Authenticated(BaseModel):
-    status: Optional[bool] = False
+    status: bool | None = False
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -56,7 +55,7 @@ def authenticate_user(username: str, password: str):
     return user
 
 
-def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta

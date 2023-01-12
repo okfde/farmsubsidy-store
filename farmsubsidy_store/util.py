@@ -1,6 +1,6 @@
 import re
 from functools import lru_cache
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import countrynames
 import pandas as pd
@@ -40,10 +40,10 @@ def get_country_name(code: str | None) -> str | None:
 
 
 def read_csv(
-    infile: Union[File, str],
-    do_raise: Optional[bool] = True,
-    fillna: Optional[Any] = "",
-    delimiter: Optional[str] = ",",
+    infile: File | str,
+    do_raise: bool | None = True,
+    fillna: Any | None = "",
+    delimiter: str | None = ",",
     **kwargs,
 ) -> pd.DataFrame:
     read_kwargs = {**{"on_bad_lines": "warn"}, **kwargs}
@@ -64,7 +64,7 @@ def read_csv(
         return df.fillna(fillna)
 
 
-def get_context_from_filename(fname: str) -> Tuple[Union[str, None], Union[str, None]]:
+def get_context_from_filename(fname: str) -> tuple[str | None, str | None]:
     m = re.match(r".*(?P<country>[a-z\D]{2})_(?P<year>[\d]{4})", fname)
     if m:
         return m.groups()
@@ -83,7 +83,7 @@ def to_json(value):
         return str(value)
 
 
-def handle_error(logger, e: Union[Exception, str], do_raise: bool, **kwargs):
+def handle_error(logger, e: Exception | str, do_raise: bool, **kwargs):
     if isinstance(e, str):
         e = Exception(e)
     if do_raise:

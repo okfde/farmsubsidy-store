@@ -1,6 +1,6 @@
 from enum import Enum
 from itertools import chain, product
-from typing import Iterable, Optional, Union
+from typing import Iterable
 
 from fingerprints import generate as generate_fp
 from pydantic import BaseModel, create_model, validator
@@ -60,9 +60,7 @@ class OutputFormat(Enum):
     export = "export"
 
 
-def _create_model(
-    name: str, fields_model: Union[BaseFields, AggregatedFields]
-) -> BaseModel:
+def _create_model(name: str, fields_model: BaseFields | AggregatedFields) -> BaseModel:
     def _fields():
         for field, lookups in fields_model.__fields__.items():
             if lookups.type_ in (NumericLookups, StringLookups):
@@ -77,7 +75,7 @@ def _create_model(
 
     return create_model(
         name,
-        **{field: (Optional[type_], None) for field, type_ in _fields()},
+        **{field: (type_ | None, None) for field, type_ in _fields()},
         __base__=fields_model,
     )
 
@@ -98,11 +96,11 @@ AggregatedFieldsParams = _create_model("AggregatedFields", AggregatedFields)
 
 
 class BaseViewParams(BaseFieldsParams):
-    order_by: Optional[OrderBy] = None
-    limit: Optional[int] = None
-    p: Optional[int] = 1
-    output: Optional[OutputFormat] = OutputFormat.json
-    api_key: Optional[str] = None
+    order_by: OrderBy | None = None
+    limit: int | None = None
+    p: int | None = 1
+    output: OutputFormat | None = OutputFormat.json
+    api_key: str | None = None
 
     @validator("p")
     def validate_p(cls, value):
@@ -128,4 +126,4 @@ class BaseViewParams(BaseFieldsParams):
 
 
 class AggregatedViewParams(BaseViewParams, AggregatedFieldsParams):
-    order_by: Optional[AggregatedOrderBy] = None
+    order_by: AggregatedOrderBy | None = None

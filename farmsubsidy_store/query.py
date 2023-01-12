@@ -1,5 +1,5 @@
 from functools import cached_property, lru_cache
-from typing import Any, Iterable, Iterator, Optional, Union
+from typing import Any, Generator, Iterable
 
 import pandas as pd
 from banal import as_bool, is_listish
@@ -31,18 +31,18 @@ class Query:
 
     def __init__(
         self,
-        table: Optional[str] = None,
+        table: str | None = None,
         # driver: Optional["Driver"] = None,
         driver=None,  # FIXME circular imports
         result_cls=None,
-        fields: Optional[Iterable[str]] = None,
-        group_by_fields: Optional[Iterable[str]] = None,
-        order_by_fields: Optional[Iterable[str]] = None,
-        order_direction: Optional[str] = "ASC",
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        where_lookup: Optional[dict] = None,
-        having_lookup: Optional[dict] = None,
+        fields: Iterable[str] | None = None,
+        group_by_fields: Iterable[str] | None = None,
+        order_by_fields: Iterable[str] | None = None,
+        order_direction: str | None = "ASC",
+        limit: int | None = None,
+        offset: int | None = None,
+        where_lookup: dict | None = None,
+        having_lookup: dict | None = None,
     ):
         if table is None:
             if driver is not None:
@@ -64,7 +64,7 @@ class Query:
     def __str__(self) -> str:
         return self.get_query()
 
-    def __iter__(self) -> Iterator[Any]:
+    def __iter__(self) -> Generator[Any, None, None]:
         df = self.execute()
         for _, row in df.iterrows():
             yield self.apply_result(row)
@@ -82,7 +82,7 @@ class Query:
         df = self.execute(query)
         return int(df["count"][0])
 
-    def execute(self, query: Optional[Union["Query", str]] = None) -> pd.DataFrame:
+    def execute(self, query: "Query" | str | None = None) -> pd.DataFrame:
         """actually return results from `self.driver`"""
         if self.driver is None:
             raise InvalidQuery("No driver for this query.")
