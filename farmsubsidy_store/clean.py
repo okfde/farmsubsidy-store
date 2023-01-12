@@ -369,7 +369,6 @@ def apply_clean(
         "recipient_address": clean_recipient_address,
         "recipient_id": clean_recipient_id,
         "scheme": clean_scheme,
-        "pk": lambda r: make_entity_id(*[r[k] for k in UNIQUE]),
     }
 
     # safe original amounts before conversion
@@ -392,6 +391,8 @@ def apply_clean(
     df["scheme_id"] = df["scheme"].map(clean_scheme_id)
 
     df["amount_original"] = df["amount_original"].map(to_decimal)
+
+    df["pk"] = df.apply(lambda r: make_entity_id(*[r[k] for k in UNIQUE]), axis=1)
 
     return df
 

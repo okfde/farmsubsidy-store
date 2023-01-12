@@ -27,7 +27,7 @@ class Query:
         "null": "IS",
     }
 
-    fields = "*"
+    fields = ["*"]
     group_by_fields = None
     order_by_fields = None
 
