@@ -1,12 +1,10 @@
-import json
 import sys
-import time
 
 import click
 
 from . import clean, db, drivers, settings
 from .logging import configure_logging, get_logger
-from .util import get_context_from_filename, read_csv, to_json
+from .util import get_context_from_filename, read_csv
 
 log = get_logger(__name__)
 
@@ -144,22 +142,6 @@ def db_import(obj, infile, ignore_errors):
     df = read_csv(infile, dtype=object)
     res = db.insert(df, driver, not ignore_errors, infile.name)
     log.info(f"Inserted {res} rows.", db=settings.DATABASE_URI, infile=infile.name)
-
-
-@cli_db.command("aggregations", help="Print out some useful aggregations as json")
-@click.option("-o", "--outfile", type=click.File("w"), default="-")
-@click.pass_obj
-def db_aggregations(obj, outfile):
-    log.info("Build aggregations...", db=settings.DATABASE_URI)
-    driver = _get_driver(obj, read_only=True)
-    start = time.time()
-    res = db.get_aggregations(driver)
-    end = time.time()
-    log.info(
-        f"Build aggregations complete. Took {end - start} sec.",
-        db=driver,
-    )
-    json.dump(res, outfile, default=to_json)
 
 
 @cli_db.command("query", help="Execute query and print result to outfile")
