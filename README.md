@@ -16,6 +16,8 @@ Pipeline steps:
 
 ## cli
 
+The cli requires **Python 3.10** or above because of the use of recent type annotations.
+
 cleaning and importing is done by a simple command line tool:
 
     fscli --help
