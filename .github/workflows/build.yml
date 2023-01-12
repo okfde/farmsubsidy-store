@@ -1,4 +1,4 @@
-name: Build api container
+name: Build farmsubsidy container
 
 on:
   workflow_dispatch: {}
