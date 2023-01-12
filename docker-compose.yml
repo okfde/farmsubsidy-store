@@ -1,7 +1,8 @@
 services:
   api:
     user: "1000:1000"
-    build: .
+    # build: .
+    image: ghcr.io/okfde/farmsubsidy:main
     restart: unless-stopped
     command: "gunicorn -w 8 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 300 --name farmsubsidy_api \
       --log-level info --log-file - farmsubsidy_store.api:app"
@@ -18,6 +19,7 @@ services:
       API_KEY: ${API_KEY}
     volumes:
       - ${DATA_ROOT:-.}/public/exports:/app/data/exports
+      - ${DATA_ROOT:-.}:/app/data
 
   clickhouse:
     # user: "1000:1000"
@@ -35,7 +37,7 @@ services:
 
   redis:
     user: "1000:1000"
-    image: redis:alpine
+    image: redis
     restart: unless-stopped
     volumes:
       - ${DATA_ROOT:-.}/redis:/data

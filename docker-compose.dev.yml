@@ -36,7 +36,7 @@ services:
         hard: 65536
 
   redis:
-    image: redis:alpine
+    image: redis
     restart: unless-stopped
     ports:
       - 127.0.0.1:6379:6379
