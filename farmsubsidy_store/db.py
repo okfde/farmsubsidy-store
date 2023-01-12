@@ -3,7 +3,6 @@ import time
 import pandas as pd
 
 from . import settings
-from .aggregations import AGGREGATIONS
 from .drivers import Driver, get_driver
 from .logging import get_logger
 from .util import handle_error
@@ -37,16 +36,6 @@ def insert(
         return res
     except Exception as e:
         handle_error(log, e, do_raise, fpath=fpath)
-
-
-def get_aggregations(driver: Driver | None = None):
-    """print some aggs"""
-    driver = driver or get_driver()
-    data = {}
-    for key, get_agg in AGGREGATIONS.items():
-        df = get_agg(driver)
-        data[key] = [v for v in df.T.to_dict().values()]
-    return data
 
 
 def measure_time(query):
