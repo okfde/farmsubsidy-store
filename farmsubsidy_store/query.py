@@ -104,6 +104,7 @@ class Query:
         # merge current state
         new_kwargs = self.__dict__.copy()
         new_kwargs.pop("df", None)  # FIXME
+        new_kwargs.pop("count", None)  # FIXME
         for key, new_value in kwargs.items():
             old_value = new_kwargs[key]
             if old_value is None:

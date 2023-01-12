@@ -1,268 +1,260 @@
-"""Paginated model views that can be used for the api
-(see farmsubsidy_store.api) or third party apps"""
+"""Paginated and cached model views for the api"""
 
 import os
+import secrets
 from enum import Enum
-from itertools import chain, product
-from typing import Iterable, List, Optional, Tuple, Union
+from functools import cached_property
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from banal import clean_dict
-from fingerprints import generate as generate_fp
+from fastapi import Request, Response
 from followthemoney.util import make_entity_id as make_id
-from pydantic import BaseModel, create_model, validator
+from furl import furl
+from pydantic import BaseModel, create_model
 
 from farmsubsidy_store import model as models
 from farmsubsidy_store import settings
+from farmsubsidy_store.logging import get_logger
 from farmsubsidy_store.query import Query
 
-
-class NullLookup(BaseModel):
-    null: bool = None
-
-
-class StringLookups(NullLookup):
-    like: str = None
-    ilike: str = None
-
-
-class NumericLookups(NullLookup):
-    gt: int = None
-    gte: int = None
-    lt: int = None
-    lte: int = None
-
-
-class BaseFields(BaseModel):
-    country: StringLookups = None
-    year: NumericLookups = None
-    recipient_id: str = None
-    recipient_name: StringLookups = None
-    recipient_fingerprint: StringLookups = None
-    recipient_address: StringLookups = None
-    scheme_id: StringLookups = None
-    scheme: StringLookups = None
-    scheme_code: StringLookups = None
-    scheme_description: StringLookups = None
-    amount: NumericLookups = None
-
-    def __init__(self, **data):
-        # rewrite fingerprint lookups to actual fingerprints
-        # but preserve % signs (if any) for LIKE clause
-        for key, value in data.items():
-            if "fingerprint" in key and value is not None:
-                old_value = value.strip("%")
-                data[key] = value.replace(old_value, generate_fp(old_value))
-        super().__init__(**data)
-
-
-class AggregatedFields(BaseModel):
-    amount_sum: NumericLookups = None
-    amount_avg: NumericLookups = None
-    amount_min: NumericLookups = None
-    amount_max: NumericLookups = None
-    total_payments: NumericLookups = None
-    total_recipients: NumericLookups = None
-
-
-class OutputFormat(Enum):
-    csv = "csv"
-    json = "json"
-    export = "export"
-
-
-def _create_model(
-    name: str, fields_model: Union[BaseFields, AggregatedFields]
-) -> BaseModel:
-    def _fields():
-        for field, lookups in fields_model.__fields__.items():
-            if lookups.type_ in (NumericLookups, StringLookups):
-                if lookups.type_ == NumericLookups:
-                    yield field, int
-                else:
-                    yield field, str
-                for lookup, lookup_type in lookups.type_.__fields__.items():
-                    yield f"{field}__{lookup}", lookup_type.type_
-            else:
-                yield field, str
-
-    return create_model(
-        name,
-        **{field: (Optional[type_], None) for field, type_ in _fields()},
-        __base__=fields_model,
-    )
-
-
-def _get_enum(name: str, items: Iterable[str]) -> Enum:
-    # amount_sum: asc , -amount_sum: desc
-    return Enum(name, (("".join(x), "".join(x)) for x in product(("", "-"), items)))
-
-
-OrderBy = _get_enum("order_by", BaseFields.__fields__)
-AggregatedOrderBy = _get_enum(
-    "order_by", chain(BaseFields.__fields__, AggregatedFields.__fields__)
+from .cache import cache
+from .params import (
+    AggregatedFieldsParams,
+    AggregatedViewParams,
+    BaseFieldsParams,
+    BaseViewParams,
+    OutputFormat,
 )
+from .util import get_page_url, get_slice, to_csv
+
+log = get_logger(__name__)
 
 
-BaseFieldsParams = _create_model("BaseFields", BaseFields)
-AggregatedFieldsParams = _create_model("AggregatedFields", AggregatedFields)
+class ApiResult(BaseModel):
+    authenticated: bool = False
+    url: str
+    page: int = 1
+    limit: int = None
+    item_count: int = 0
+    export_url: str = None
+    query: dict = {}
+    next_url: str = None
+    prev_url: str = None
+    error: str = None
+    results: Optional[List[Dict[str, Any]]] = []
 
 
-class BaseViewParams(BaseFieldsParams):
-    order_by: Optional[OrderBy] = None
-    limit: Optional[int] = None
-    p: Optional[int] = 1
-    output: Optional[OutputFormat] = OutputFormat.json
-    api_key: Optional[str] = None
-
-    @validator("p")
-    def validate_p(cls, value):
-        if value < 1:
-            raise ValueError("Page must be 1 or higher (got `{value}`).")
-        return value
-
-    @validator("limit")
-    def validate_limit(cls, value):
-        if value is not None:
-            if value < 1:
-                raise ValueError("Limit must be 1 or higher (got `{value}`).")
-        return value
-
-    @validator("order_by")
-    def validate_order_by(cls, value):
-        if isinstance(value, Enum):
-            return value.value
-        return value
-
-    class Config:
-        extra = "forbid"
-
-
-class AggregatedViewParams(BaseViewParams, AggregatedFieldsParams):
-    order_by: Optional[AggregatedOrderBy] = None
-
-
-class BaseListView:
-    """this is a bit weird implemented with all the setters on self, but here
-    we don't know about a request object and don't want to initialize the class
-    with params"""
-
+class BaseView:
     max_limit = 1000
     model = None
     params_cls = BaseViewParams
 
-    def get_results(self, df: Optional[pd.DataFrame] = None, **params):
-        self.apply_params(**params)
-        self.query = self.get_query(**params)
-        if df is not None:
-            self.data = self.get_results_from_df(df)
-        else:
-            self.data = list(self.query)
-        self.has_next = (
-            (self.query.count >= self.page * self.limit)
-            if self.limit is not None
-            else False
-        )
-        self.has_prev = self.page > 1
-        return self.data
-
-    def apply_params(self, is_authenticated: Optional[bool] = False, **params) -> dict:
-        if hasattr(self, "params"):  # might be already called
-            return self.params
-        params = self.params_cls(**params)
-        params = clean_dict(params.dict())
-        self.page = params.pop("p", 1)
-        self.order_by = params.pop("order_by", None)
-        self.output_format = params.pop("output")
-        self.limit = self.get_limit(params.pop("limit", None), **params)
+    def __init__(
+        self, params: BaseViewParams, is_authenticated: Optional[bool] = False
+    ):
         self.params = params
         self.is_authenticated = is_authenticated
-        return params
+        self.ensure_limit()
 
-    def get_limit(self, limit: Optional[int] = None, **params) -> int:
-        # allow override in api view for higher limit based on api key
-        return min(self.max_limit, limit or self.max_limit)
+    def get(self, request: Request, response: Response) -> ApiResult:
+        log.debug("Auth", authenticated=self.is_authenticated)
+        result = ApiResult(
+            authenticated=self.is_authenticated,
+            url=str(request.url),
+            query=clean_dict(self.params.dict()),
+            item_count=self.query.count,
+            limit=self.params.limit,
+            page=self.params.p,
+        )
+        try:
+            result_data = self.get_data()
+        except Exception as e:
+            raise e
+            response.status_code = 400
+            result.error = str(e)
+            return result
+        if self.params.output == OutputFormat.csv:
+            return Response(content=result_data, media_type="text/csv")
+        if self.params.output == OutputFormat.export:
+            result.export_url = str(furl(request.base_url) / result_data)
+            return result
 
-    def get_slice(self, page: int, limit: Optional[int] = None) -> Tuple[int, int]:
-        if limit is not None:
-            start = (page - 1) * limit
-            end = start + limit
-            return start, end
-        return None, None
+        # normal json response
+        has_next = (
+            (self.query.count >= self.params.p * self.params.limit)
+            if self.params.limit is not None
+            else False
+        )
+        has_prev = self.params.p > 1
+        result.next_url = (
+            get_page_url(self.params.p, request.url, 1) if has_next else None
+        )
+        result.prev_url = (
+            get_page_url(self.params.p, request.url, -1) if has_prev else None
+        )
+        result.results = [i.dict() for i in result_data]
+        return result
 
-    def get_query(self, is_authenticated: Optional[bool] = False, **params) -> Query:
-        if not hasattr(self, "params"):
-            self.apply_params(is_authenticated=is_authenticated, **params)
+    def get_data(self) -> Any:
+        """
+        try to get results from cache or compute new results, store in cache and return
+        """
+        if self.params.output == OutputFormat.export:
+            return self.get_export_path()
+
+        cached_results = self.get_results_from_cache()
+        if cached_results is not None:
+            return cached_results
+
+        result = list(self.query)
+        cache.set(self.get_cache_key(), result)
+        return result
+
+    def get_query(self) -> Query:
         query = (
             self.model.select().where(**self.where_params).having(**self.having_params)
         )
-        if self.order_by is not None:
-            order_by = self.order_by
+
+        if self.params.order_by is not None:
+            order_by = self.params.order_by
             ascending = True
             if order_by.startswith("-"):
                 order_by = order_by[1:]
                 ascending = False
             query = query.order_by(order_by, ascending=ascending)
-        start, end = self.get_slice(self.page, self.limit)
+        start, end = get_slice(self.params.p, self.params.limit)
         return query[start:end]
 
+    def ensure_limit(self) -> None:
+        # allow higher for secret api key (used by nextjs build calls or export)
+        if not secrets.compare_digest(self.params.api_key or "", settings.API_KEY):
+            if self.is_authenticated and self.params.output in (
+                OutputFormat.csv,
+                OutputFormat.export,
+            ):  # user exports
+                self.params.limit = min(
+                    settings.EXPORT_LIMIT, self.params.limit or settings.EXPORT_LIMIT
+                )
+            else:
+                self.params.limit = min(
+                    self.max_limit, self.params.limit or self.max_limit
+                )
+
+    def get_results_from_cache(self) -> Any:
+        # 1. try direct cache key
+        key = self.get_cache_key()
+        res = cache.get(key)
+        if res is not None:
+            return res
+
+        # 2. maybe we have the query cached already as json
+        if self.params.output == OutputFormat.csv:
+            key = self.get_cache_key("csv")
+            res = cache.get(key)
+            if res is not None:
+                res = to_csv(res)
+                # store as csv for next time
+                cache.set(key, res)
+                return res
+
+        # 3.
+        # as for filtered queries limiting and sorting (windowing) is
+        # as expensive as the whole, we cache the full query for fast
+        # api pagination/ordering
+        full_query = self.query._chain(limit=None, offset=None, order_by_fields=None)
+        full_cache_key = make_id("precached-window", str(full_query))
+        full_cache_skip = make_id("skip", full_cache_key)
+        skip = cache.get(full_cache_skip)
+        if skip is None:
+            df = cache.get(full_cache_key)
+            if df is not None:
+                results = self.get_results_from_df(df)
+                cache.set(self.get_cache_key(), results)
+                return results
+            else:
+                # don't cache too big queries
+                if full_query.count <= 100_000:
+                    df = full_query.execute()
+                    cache.set(full_cache_key, df)
+                    return self.get_results_from_df(df)
+                else:
+                    cache.set(full_cache_skip, True)
+
     def get_results_from_df(self, df: pd.DataFrame):
-        # use a previously cached df and apply ordering and slicing on it
+        """use a previously cached df and apply ordering and slicing on it"""
         if not len(df):
             return []
-        if self.order_by is not None:
-            order_by = self.order_by
+        if self.params.order_by is not None:
+            order_by = self.params.order_by
             ascending = True
             if order_by.startswith("-"):
                 order_by = order_by[1:]
                 ascending = False
             df = df.sort_values(order_by, ascending=ascending)
-        start, end = self.get_slice(self.page, self.limit)
+        start, end = get_slice(self.params.p, self.params.limit)
         df = df.iloc[start:end]
         return [self.model(**row) for _, row in df.iterrows()]
 
-    def get_export(self, **params):
+    def get_export_path(self):
         """generate an exported csv file (or use existing) and return public
         path to it"""
-        self.query = self.get_query(**params)
         export_file = make_id("export", str(self.query)) + ".csv"
         export_fpath = os.path.join(settings.EXPORT_DIRECTORY, export_file)
         if not os.path.isfile(export_fpath):
             df = self.query.execute()
-            self.to_csv(df, export_fpath)
+            to_csv(df, export_fpath)
         return settings.EXPORT_PUBLIC_PATH + "/" + export_file
 
-    @property
-    def where_params(self) -> dict:
+    def get_cache_key(self, prefix: Optional[str] = None) -> str:
+        prefix = prefix or self.params.output
+        return make_id(prefix, int(self.is_authenticated), str(self.query))
+
+    @cached_property
+    def query(self) -> Query:
+        return self.get_query()
+
+    @cached_property
+    def where_params(self) -> Dict[str, Any]:
         params = {}
-        for k, v in self.params.items():
+        for k, v in self.params:
             if k in BaseFieldsParams.__fields__:
                 params[k] = v
-        return params
+        return clean_dict(params)
 
-    @property
-    def having_params(self) -> dict:
+    @cached_property
+    def having_params(self) -> Dict[str, Any]:
         params = {}
-        for k, v in self.params.items():
+        for k, v in self.params:
             if k in AggregatedFieldsParams.__fields__:
                 params[k] = v
-        return params
+        return clean_dict(params)
 
     @classmethod
-    def to_csv(
-        cls, df: Union[List[BaseModel], pd.DataFrame], fpath: Optional[str] = None
-    ):
-        if not isinstance(df, pd.DataFrame):
-            df = pd.DataFrame(dict(i) for i in df)
-        df = df.applymap(
-            lambda x: ";".join(sorted(str(i) for i in x)) if isinstance(x, list) else x
+    def get_response_model(cls):
+        return create_model(
+            f"{cls.__name__}{cls.model.__name__}ApiResult",
+            results=(List[cls.model], []),
+            __base__=ApiResult,
         )
-        if fpath is None:
-            return df.fillna("").to_csv(index=False)
-        df.fillna("").to_csv(fpath, index=False)
+
+    @classmethod
+    def get_params_cls(cls):
+        # FIXME
+        # fastapi views cannot share same classes for pydantic models !?
+        order_by_fields = cls.params_cls.schema()["definitions"]["order_by"]["enum"]
+        OrderBy = Enum(
+            f"{cls.__name__}{cls.params_cls.__name__}OrderBy",
+            ((o, o) for o in order_by_fields),
+        )
+        return create_model(
+            f"{cls.__name__}ViewParams",
+            order_by=(OrderBy, None),
+            __base__=cls.params_cls,
+        )
 
 
-class RestrictedView(BaseListView):
+class RestrictedView(BaseView):
     """
     restrict query results to last two years due to legal (lex farmsubsidy)
     """
@@ -274,11 +266,11 @@ class RestrictedView(BaseListView):
         return query
 
 
-class PaymentListView(RestrictedView):
+class PaymentView(RestrictedView):
     model = models.Payment
 
 
-class RecipientListView(RestrictedView):
+class RecipientView(RestrictedView):
     params_cls = AggregatedViewParams
     model = models.Recipient
 
@@ -302,22 +294,22 @@ class RecipientNameView(RestrictedView):
     model = models.RecipientName
 
 
-class SchemeListView(BaseListView):
+class SchemeView(BaseView):
     params_cls = AggregatedViewParams
     model = models.Scheme
 
 
-class CountryListView(BaseListView):
+class CountryView(BaseView):
     params_cls = AggregatedViewParams
     model = models.Country
 
 
-class YearListView(BaseListView):
+class YearView(BaseView):
     params_cls = AggregatedViewParams
     model = models.Year
 
 
-class LocationListView(BaseListView):
+class LocationView(BaseView):
     params_cls = AggregatedViewParams
     model = models.Location
 
@@ -326,8 +318,8 @@ class AggregationView(RestrictedView):  # FIXME
     params_cls = BaseViewParams
     model = models.Aggregation
 
-    def get_results(self, df: pd.DataFrame = None, **params):
-        res = super().get_results(df, **params)
-        self.has_next = False
-        self.has_prev = False
-        return res
+    def get(self, *args, **kwargs):
+        data = super().get(*args, **kwargs)
+        data.next_url = None
+        data.prev_url = None
+        return data

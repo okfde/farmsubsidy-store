@@ -150,9 +150,11 @@ class Scheme(BaseORM, BaseModel):
     amount_avg: Optional[float] = None
     amount_max: Optional[float] = None
     amount_min: Optional[float] = None
+    description: Optional[str] = None
 
-    def __str__(self):
-        return self.scheme
+    def __init__(self, **data):
+        data["description"] = DESCRIPTIONS.get(data["name"])
+        super().__init__(**data)
 
     def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(scheme_id=self.id)
@@ -165,9 +167,6 @@ class Scheme(BaseORM, BaseModel):
 
     def get_countries(self) -> Query:
         return Country.select().where(scheme_id=self.id)
-
-    def get_description(self):
-        return DESCRIPTIONS.get(self.name)
 
 
 class Country(BaseORM, BaseModel):

@@ -1,24 +1,32 @@
 import re
-import secrets
-from enum import Enum
-from typing import List, Optional, Union
 
-from cachelib import redis
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from followthemoney.util import make_entity_id as make_id
-from furl import furl
-from pydantic import BaseModel, create_model
 
 from farmsubsidy_store import settings
 from farmsubsidy_store.drivers import get_driver
 from farmsubsidy_store.logging import get_logger
 
-from . import auth, views
+from . import auth
+from .cache import cache
+from .params import OutputFormat
+from .util import to_csv
+from .views import (
+    AggregationView,
+    CountryView,
+    LocationView,
+    PaymentView,
+    RecipientBaseView,
+    RecipientNameView,
+    RecipientView,
+    SchemeView,
+    YearView,
+)
 
-CSV = views.OutputFormat.csv
-EXPORT = views.OutputFormat.export
+CSV = OutputFormat.csv
+EXPORT = OutputFormat.export
 
 
 origins = [
@@ -40,16 +48,6 @@ app.add_middleware(
 log = get_logger(__name__)
 
 
-if settings.API_CACHE:
-    uri = settings.REDIS_URL
-    uri = uri.replace("redis://", "")
-    host, *port = uri.rsplit(":", 1)
-    port = port[0] if len(port) else 6379
-    cache = redis.RedisCache(host, port, default_timeout=0, key_prefix="fs-api")
-else:
-    cache = None
-
-
 if settings.DEBUG:
     # serve csv exports directily, for production use e.g. nginx
     app.mount(
@@ -59,217 +57,11 @@ if settings.DEBUG:
     )
 
 
-class ApiResultMeta(BaseModel):
-    authenticated: bool = False
-    page: int = 1
-    item_count: int = 0
-    url: str
-    export_url: str = None
-    query: dict = {}
-    next_url: str = None
-    prev_url: str = None
-    error: str = None
-    limit: int = None
-
-
-class ApiView(views.BaseListView):
-    def get(
-        self,
-        request: Request,
-        response: Response,
-        is_authenticated: Optional[bool] = False,
-        **params,
-    ):
-        log.debug("Auth", authenticated=is_authenticated)
-        try:
-            query = self.get_query(is_authenticated=is_authenticated, **params)
-            df = None
-
-            if self.output_format == EXPORT:
-                export_path = self.get_export(**params)
-                export_url = furl(request.base_url) / export_path
-                return {
-                    "authenticated": is_authenticated,
-                    "item_count": self.query.count,
-                    "limit": self.limit,
-                    "url": str(request.url),
-                    "query": self.params,
-                    "export_url": str(export_url),
-                }
-
-            if cache is not None:
-                cache_prefix = "csv" if self.output_format == CSV else "view"
-                cache_key = make_id(cache_prefix, str(query), int(is_authenticated))
-                cached_results = cache.get(cache_key)
-                if cached_results:
-                    log.info(
-                        f"Cache hit for `{cache_key}` ({self.output_format.value})"
-                    )
-                    return self.ensure_response(request, cached_results)
-
-                if self.output_format == CSV:
-                    # maybe we have the query cached already as json
-                    cache_key_json = make_id("view", str(query))
-                    cached_results = cache.get(cache_key_json)
-                    if cached_results:
-                        log.info(f"Cache hit for `{cache_key}` (json)")
-                        result = self.to_csv(cached_results["results"])
-                        cache.set(cache_key, result)
-                        return self.ensure_response(request, result)
-
-                # as for filtered queries limiting and sorting (windowing) is
-                # as expensive as the whole, we cache the full query for fast
-                # api pagination/ordering
-                full_query = query._chain(limit=None, offset=None, order_by_fields=None)
-                full_cache_key = make_id("precached-window", str(full_query))
-                full_cache_skip = make_id("skip", full_cache_key)
-                skip = cache.get(full_cache_skip)
-                if skip is None:
-                    df = cache.get(full_cache_key)
-                    if df is not None:
-                        log.info(f"Cache hit for `{cache_key}` (precached window)")
-                    else:
-                        # don't cache too big queries
-                        if full_query.count <= 100_000:
-                            df = full_query.execute()
-                            cache.set(full_cache_key, df)
-                        else:
-                            cache.set(full_cache_skip, True)
-
-            self.get_results(df, **params)
-
-            # csv response
-            if self.output_format == CSV:
-                result = self.to_csv(self.data)
-                if cache is not None:
-                    cache.set(cache_key, result)
-                return self.ensure_response(request, result)
-
-            # json response
-            results = {
-                "authenticated": is_authenticated,
-                "page": self.page,
-                "limit": self.limit,
-                "item_count": self.query.count,
-                "url": str(request.url),
-                "next_url": self.get_page_url(self.page, request.url, 1)
-                if self.has_next
-                else None,
-                "prev_url": self.get_page_url(self.page, request.url, -1)
-                if self.has_prev
-                else None,
-                "query": self.params,
-                "results": [i.dict() for i in self.data],
-            }
-            if cache is not None:
-                cache.set(cache_key, results)
-            return results
-
-        except Exception as e:
-            response.status_code = 400
-            return {
-                "error": str(e),
-                "url": str(request.url),
-                "query": self.params,
-                "authenticated": is_authenticated,
-            }
-
-    def get_limit(self, limit, **params):
-        # allow higher for secret api key (used by nextjs server side calls)
-        api_key = params.pop("api_key", "")
-        if secrets.compare_digest(api_key, settings.API_KEY):
-            return limit
-        return super().get_limit(limit)
-
-    def ensure_response(self, request: Request, result: Union[dict, str]) -> dict:
-        if self.output_format == CSV:
-            return Response(content=result, media_type="text/csv")
-
-        # request urls should always rewritten in returned cached payload as
-        # someone could put anything in get parameters (they are ignored by the
-        # api, though) that would then be cached and returned to other users as
-        # well, this seems not to be a security risk but feels weird
-        url = str(request.url)
-        result["url"] = url
-        if result["next_url"] is not None:
-            result["next_url"] = self.get_page_url(result["page"], url, 1)
-        if result["prev_url"] is not None:
-            result["prev_url"] = self.get_page_url(result["page"], url, -1)
-        return result
-
-    @classmethod
-    def get_response_model(cls):
-        return create_model(
-            f"{cls.__name__}{cls.model.__name__}ApiResult",
-            results=(List[cls.model], []),
-            __base__=ApiResultMeta,
-        )
-
-    @classmethod
-    def get_page_url(cls, page: int, url: str, change: int):
-        new_page = page + change
-        url = furl(url)
-        url.args["p"] = new_page
-        return str(url)
-
-    @classmethod
-    def get_params_cls(cls):
-        # FIXME
-        # fastapi views cannot share same classes for pydantic models !?
-        order_by_fields = cls.params_cls.schema()["definitions"]["order_by"]["enum"]
-        OrderBy = Enum(
-            f"{cls.__name__}{cls.params_cls.__name__}OrderBy",
-            ((o, o) for o in order_by_fields),
-        )
-        return create_model(
-            f"{cls.__name__}ViewParams",
-            order_by=(OrderBy, None),
-            __base__=cls.params_cls,
-        )
-
-
-class PaymentApiView(views.PaymentListView, ApiView):
-    endpoint = "/payments"
-
-
-class RecipientApiView(views.RecipientListView, ApiView):
-    endpoint = "/recipients"
-
-
-class RecipientBaseApiView(views.RecipientBaseView, ApiView):
-    endpoint = "/recipients/base"
-
-
-class RecipientAutocompleteApiView(views.RecipientNameView, ApiView):
-    endpoint = "/recipients/autocomplete"
-
-
-class SchemeApiView(views.SchemeListView, ApiView):
-    endpoint = "/schemes"
-
-
-class CountryApiView(views.CountryListView, ApiView):
-    endpoint = "/countries"
-
-
-class YearApiView(views.YearListView, ApiView):
-    endpoint = "/years"
-
-
-class LocationApiView(views.LocationListView, ApiView):
-    endpoint = "/locations"
-
-
-class AggregationApiView(views.AggregationView, ApiView):
-    endpoint = "/agg"
-
-
-# model views
-@app.get(PaymentApiView.endpoint, response_model=PaymentApiView.get_response_model())
+@app.get("/payments", response_model=PaymentView.get_response_model())
 async def payments(
     request: Request,
     response: Response,
-    commons: PaymentApiView.get_params_cls() = Depends(),
+    params: PaymentView.get_params_cls() = Depends(),
     is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
@@ -303,16 +95,15 @@ async def payments(
     }
     ```
     """
-    return PaymentApiView().get(request, response, is_authenticated, **commons.dict())
+    view = PaymentView(params, is_authenticated)
+    return view.get(request, response)
 
 
-@app.get(
-    RecipientApiView.endpoint, response_model=RecipientApiView.get_response_model()
-)
+@app.get("/recipients", response_model=RecipientView.get_response_model())
 async def recipients(
     request: Request,
     response: Response,
-    commons: RecipientApiView.get_params_cls() = Depends(),
+    params: RecipientView.get_params_cls() = Depends(),
     is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
@@ -379,17 +170,15 @@ async def recipients(
     }
     ```
     """
-    return RecipientApiView().get(request, response, is_authenticated, **commons.dict())
+    view = RecipientView(params, is_authenticated)
+    return view.get(request, response)
 
 
-@app.get(
-    RecipientBaseApiView.endpoint,
-    response_model=RecipientBaseApiView.get_response_model(),
-)
+@app.get("/recipients/base", response_model=RecipientBaseView.get_response_model())
 async def recipients_base(
     request: Request,
     response: Response,
-    commons: RecipientBaseApiView.get_params_cls() = Depends(),
+    params: RecipientBaseView.get_params_cls() = Depends(),
     is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
@@ -418,16 +207,15 @@ async def recipients_base(
     }
     ```
     """
-    return RecipientBaseApiView().get(
-        request, response, is_authenticated, **commons.dict()
-    )
+    view = RecipientBaseView(params, is_authenticated)
+    return view.get(request, response)
 
 
-@app.get(SchemeApiView.endpoint, response_model=SchemeApiView.get_response_model())
+@app.get("/schemes", response_model=SchemeView.get_response_model())
 async def schemes(
     request: Request,
     response: Response,
-    commons: SchemeApiView.get_params_cls() = Depends(),
+    params: SchemeView.get_params_cls() = Depends(),
 ):
     """
     Return aggregated values for schemes based on filter criteria.
@@ -454,14 +242,15 @@ async def schemes(
     }
     ```
     """
-    return SchemeApiView().get(request, response, **commons.dict())
+    view = SchemeView(params)
+    return view.get(request, response)
 
 
-@app.get(CountryApiView.endpoint, response_model=CountryApiView.get_response_model())
+@app.get("/countries", response_model=CountryView.get_response_model())
 async def countries(
     request: Request,
     response: Response,
-    commons: CountryApiView.get_params_cls() = Depends(),
+    params: CountryView.get_params_cls() = Depends(),
 ):
     """
     Return aggregated values for countries based on filter criteria.
@@ -502,14 +291,15 @@ async def countries(
     }
     ```
     """
-    return CountryApiView().get(request, response, **commons.dict())
+    view = CountryView(params)
+    return view.get(request, response)
 
 
-@app.get(YearApiView.endpoint, response_model=YearApiView.get_response_model())
+@app.get("/years", response_model=YearView.get_response_model())
 async def years(
     request: Request,
     response: Response,
-    commons: YearApiView.get_params_cls() = Depends(),
+    params: YearView.get_params_cls() = Depends(),
 ):
     """
     Return aggregated values for years based on filter criteria.
@@ -570,14 +360,15 @@ async def years(
     }
     ```
     """
-    return YearApiView().get(request, response, **commons.dict())
+    view = YearView(params)
+    return view.get(request, response)
 
 
-@app.get(LocationApiView.endpoint, response_model=LocationApiView.get_response_model())
+@app.get("/locations", response_model=LocationView.get_response_model())
 async def locations(
     request: Request,
     response: Response,
-    commons: LocationApiView.get_params_cls() = Depends(),
+    params: LocationView.get_params_cls() = Depends(),
 ):
     """
     Return aggregated values for locations (`recipient_address`) based on
@@ -623,17 +414,17 @@ async def locations(
     }
     ```
     """
-    return LocationApiView().get(request, response, **commons.dict())
+    view = LocationView(params)
+    return view.get(request, response)
 
 
 @app.get(
-    RecipientAutocompleteApiView.endpoint,
-    response_model=RecipientAutocompleteApiView.get_response_model(),
+    "/recipients/autocomplete", response_model=RecipientNameView.get_response_model()
 )
 async def recipients_autocomplete(
     request: Request,
     response: Response,
-    commons: RecipientAutocompleteApiView.get_params_cls() = Depends(),
+    params: RecipientNameView.get_params_cls() = Depends(),
     is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
@@ -654,19 +445,15 @@ async def recipients_autocomplete(
     }
     ```
     """
-    return RecipientAutocompleteApiView().get(
-        request, response, is_authenticated, **commons.dict()
-    )
+    view = RecipientNameView(params, is_authenticated)
+    return view.get(request, response)
 
 
-@app.get(
-    AggregationApiView.endpoint,
-    response_model=AggregationApiView.get_response_model(),
-)
+@app.get("/agg", response_model=AggregationView.get_response_model())
 async def aggregation(
     request: Request,
     response: Response,
-    commons: AggregationApiView.get_params_cls() = Depends(),
+    params: AggregationView.get_params_cls() = Depends(),
     is_authenticated: bool = Depends(auth.get_authenticated),
 ):
     """
@@ -687,9 +474,8 @@ async def aggregation(
     }
     ```
     """
-    return AggregationApiView().get(
-        request, response, is_authenticated, **commons.dict()
-    )
+    view = AggregationView(params, is_authenticated)
+    return view.get(request, response)
 
 
 # raw sql
@@ -712,17 +498,13 @@ async def raw_sql(
     """
     if query is not None:
         try:
-            if cache is not None:
-                cache_key = make_id("raw-sql", str(query))
-                cached_results = cache.get(cache_key)
-                if cached_results:
-                    log.info(f"Cache hit for `{cache_key}`")
-                    return Response(content=cached_results, media_type="text/csv")
+            cache_key = make_id("raw-sql", str(query))
+            cached_results = cache.get(cache_key)
+            if cached_results:
+                return Response(content=cached_results, media_type="text/csv")
             driver = get_driver()
-            df = driver.query(query)
-            data = df.to_csv(index=False)
-            if cache is not None:
-                cache.set(cache_key, data)
+            data = to_csv(driver.query(query))
+            cache.set(cache_key, data)
             return Response(content=data, media_type="text/csv")
         except Exception:
             response.status_code = 500
@@ -731,9 +513,15 @@ async def raw_sql(
     return {"error": "Invalid query"}
 
 
-@app.post("/login", response_model=auth.Token)
-async def login_for_access_token(form_data: auth.OAuth2PasswordRequestForm = Depends()):
-    return auth.login_for_access_token(form_data)
+@app.get("/token", response_model=auth.Token)
+async def login_token(
+    credentials: auth.HTTPBasicCredentials = Depends(auth.basic_auth),
+):
+    """
+    Send username & password via `Authorization` header (basic auth) and
+    retrieve a [JWT](https://jwt.io/) token to use for the api.
+    """
+    return auth.login_for_access_token(credentials)
 
 
 @app.get("/authenticated", response_model=auth.Authenticated)

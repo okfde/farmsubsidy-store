@@ -5,7 +5,7 @@ from typing import Optional, Union
 
 import pandas as pd
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBasic, HTTPBasicCredentials, OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -32,9 +32,9 @@ class Authenticated(BaseModel):
     status: Optional[bool] = False
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+basic_auth = HTTPBasic(auto_error=True)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password, hashed_password):
@@ -98,8 +98,8 @@ def require_authenticated(token: str = Depends(oauth2_scheme)) -> bool:
     return authenticated
 
 
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+def login_for_access_token(credentials: HTTPBasicCredentials = Depends(basic_auth)):
+    user = authenticate_user(credentials.username, credentials.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

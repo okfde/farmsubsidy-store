@@ -126,15 +126,13 @@ to the path of this file.
 
     htpasswd -cbB .htpasswd testuser testpw
 
-The api uses this as a user database. Login can performed via username /
-password to the POST `/login` endpoint.
+The api uses this as a user database. Tokens can obtained using basic auth at
+the `/token` endpoint:
 
 ```bash
-curl -X 'POST' \                                   (feature/auth✱)
+curl -X 'POST' \
   'http://127.0.0.1:8000/login' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  -d 'username=testuser&password=testpw'
+  -H 'Authorization: Basic <...>'
 ```
 
 That returns a [JWT](https://jwt.io/) token valid for `API_TOKEN_LIFETIME`
@@ -149,7 +147,7 @@ That returns a [JWT](https://jwt.io/) token valid for `API_TOKEN_LIFETIME`
 Which can be used for subsequent requests then:
 
 ```bash
-curl -X 'GET' \                                    (feature/auth✱)
+curl -X 'GET' \
   'http://127.0.0.1:8000/authenticated' \
   -H 'accept: application/json' \
   -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0dXNlciIsImV4cCI6MTY3MzUzMjI1MH0.vybbse9bNaz1TJJvOJXquh0zSmKGWLhnrBCfkf-2uCY'

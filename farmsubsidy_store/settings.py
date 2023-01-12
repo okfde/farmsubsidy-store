@@ -47,3 +47,4 @@ API_TOKEN_LIFETIME = int(get_env("API_TOKEN_LIFETIME", 60 * 24))  # in minutes
 PUBLIC_YEARS = get_env("API_PUBLIC_YEARS", "2020,2021").split(",")
 EXPORT_DIRECTORY = get_env("EXPORT_DIRECTORY", os.path.join(DATA_ROOT, "exports"))
 EXPORT_PUBLIC_PATH = get_env("EXPORT_PUBLIC_PATH", "/exports")
+EXPORT_LIMIT = int(get_env("API_EXPORT_LIMIT", 100_000))
