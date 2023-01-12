@@ -1,7 +1,8 @@
 export DRIVER ?= clickhouse
 export DATA_ROOT ?= `pwd`/data
 export LOG_LEVEL ?= info
-export DATA_DOMAIN = https://$(API_BASIC_AUTH)@data.farmsubsidy.org
+export COMPOSE ?= docker-compose.yml
+export DATA_DOMAIN = https://$(DATA_BASIC_AUTH)@data.farmsubsidy.org
 
 all: init download clean import
 
@@ -24,6 +25,7 @@ clean:
 	fscli clean -i $(DATA_ROOT)/src/latest/lt_2016.csv.gz --currency=LTL | gzip > $(DATA_ROOT)/cleaned/lt_2016.csv.cleaned.csv.gz
 	fscli clean -i $(DATA_ROOT)/src/latest/lt_2015.csv.gz --currency=LTL | gzip > $(DATA_ROOT)/cleaned/lt_2015.csv.cleaned.csv.gz
 	fscli clean -i $(DATA_ROOT)/src/latest/pl_2015.csv.gz --currency=EUR | gzip > $(DATA_ROOT)/cleaned/pl_2015.csv.cleaned.csv.gz
+	# OLD DATA
 	# parallel "fscli clean -i {} -h recipient_name,recipient_street1,recipient_street2,recipient_postcode,recipient_city,amount,amount_original,scheme,year,country --ignore-errors | gzip > $(DATA_ROOT)/cleaned_flat/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/flat/*.gz
 
 download_cleaned:
@@ -50,7 +52,7 @@ api:  # for developement
 	DEBUG=1 uvicorn farmsubsidy_store.api.app:app --reload
 
 install.dev:
-	pip install coverage nose moto pytest pytest-cov black flake8 isort ipdb mypy
+	pip install coverage nose moto pytest pytest-cov black flake8 isort ipdb mypy bump2version
 
 test: install.dev
 	pip install types-python-jose
@@ -61,5 +63,7 @@ test: install.dev
 
 
 docker:
-	echo $(GITHUB_PAT) | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
-	docker-compose up -d
+	docker-compose -f $(COMPOSE) up -d
+
+docker.%:
+	docker-compose -f $(COMPOSE) run --rm api make $*

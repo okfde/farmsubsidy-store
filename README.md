@@ -144,8 +144,6 @@ this will include:
 
 Already downloaded files will only be replaced by newer ones.
 
-**TODO**: If a cleaned csv already exists, it will not be re-generated.
-
 If the table `farmsubsidy` already exists, it will be deleted!
 
 ### parallel cleaning
@@ -162,11 +160,11 @@ spin up dev:
 
 env vars:
 
-`ALLOWED_ORIGIN`=<origin domain for cors>
-`API_KEY`=<secret api key for frontend app to allow bigger exports>
-`API_HTPASSWD`=<path to nginx .htpasswd>
-`API_TOKEN_SECRET`="secret sign token"   # openssl rand -hex 32
-`API_TOKEN_LIFETIME`=<token lifetime in minutes>
+- `ALLOWED_ORIGIN`=<origin domain for cors>
+- `API_KEY`=<secret api key for frontend app to allow bigger exports>
+- `API_HTPASSWD`=<path to nginx .htpasswd>
+- `API_TOKEN_SECRET`="secret sign token"   # openssl rand -hex 32
+- `API_TOKEN_LIFETIME`=<token lifetime in minutes>
 
 ### authentication:
 
