@@ -1,7 +1,10 @@
 import re
-from typing import Any, Optional, Tuple, Union
+from functools import lru_cache
+from typing import Any
 
+import countrynames
 import pandas as pd
+import pycountry
 from click import File
 
 from .logging import get_logger
@@ -9,11 +12,38 @@ from .logging import get_logger
 log = get_logger(__name__)
 
 
+@lru_cache
+def get_country_code(value: str | None) -> str | None:
+    if value is None:
+        return
+    code = countrynames.to_code(value)
+    if code is not None:
+        return code
+    try:
+        results = pycountry.countries.search_fuzzy(value)
+        for result in results:
+            return result.alpha_2
+    except LookupError:
+        return
+
+
+@lru_cache
+def get_country_name(code: str | None) -> str | None:
+    if code is None:
+        return
+    code = get_country_code(code)
+    try:
+        country = pycountry.countries.get(alpha_2=code)
+        return country.name
+    except LookupError:
+        return
+
+
 def read_csv(
-    infile: Union[File, str],
-    do_raise: Optional[bool] = True,
-    fillna: Optional[Any] = "",
-    delimiter: Optional[str] = ",",
+    infile: File | str,
+    do_raise: bool | None = True,
+    fillna: Any | None = "",
+    delimiter: str | None = ",",
     **kwargs,
 ) -> pd.DataFrame:
     read_kwargs = {**{"on_bad_lines": "warn"}, **kwargs}
@@ -34,7 +64,7 @@ def read_csv(
         return df.fillna(fillna)
 
 
-def get_context_from_filename(fname: str) -> Tuple[Union[str, None], Union[str, None]]:
+def get_context_from_filename(fname: str) -> tuple[str | None, str | None]:
     m = re.match(r".*(?P<country>[a-z\D]{2})_(?P<year>[\d]{4})", fname)
     if m:
         return m.groups()
@@ -53,7 +83,7 @@ def to_json(value):
         return str(value)
 
 
-def handle_error(logger, e: Union[Exception, str], do_raise: bool, **kwargs):
+def handle_error(logger, e: Exception | str, do_raise: bool, **kwargs):
     if isinstance(e, str):
         e = Exception(e)
     if do_raise:

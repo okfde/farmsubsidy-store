@@ -1,10 +1,11 @@
 services:
   api:
     user: "1000:1000"
-    build: .
+    # build: .
+    image: ghcr.io/okfde/farmsubsidy:${FS_TAG:-main}
     restart: unless-stopped
     command: "gunicorn -w 8 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 300 --name farmsubsidy_api \
-      --log-level info --log-file - farmsubsidy_store.api:app"
+              --log-level info --log-file - farmsubsidy_store.api.app:app"
     ports:
       - 127.0.0.1:5000:8000
     links:
@@ -13,11 +14,14 @@ services:
     environment:
       DATABASE_URI: clickhouse
       REDIS_URL: redis://redis
+      DATA_BASIC_AUTH: ${DATA_BASIC_AUTH}
       API_CACHE: 1
       API_ALLOWED_ORIGIN: ${API_ALLOWED_ORIGIN:-https://farmsubsidy.org}
-      API_KEY: ${API_KEY}
+      API_KEY: ${API_KEY:-fsapisecret}
+      PARALLEL: ${PARALLEL:-"-j4"}
     volumes:
       - ${DATA_ROOT:-.}/public/exports:/app/data/exports
+      - ${DATA_ROOT:-.}:/app/data
 
   clickhouse:
     # user: "1000:1000"
@@ -35,7 +39,7 @@ services:
 
   redis:
     user: "1000:1000"
-    image: redis:alpine
+    image: redis
     restart: unless-stopped
     volumes:
       - ${DATA_ROOT:-.}/redis:/data

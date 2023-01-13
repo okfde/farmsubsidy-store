@@ -1,6 +1,6 @@
 import logging
 from functools import lru_cache
-from typing import Iterable, Iterator, Optional
+from typing import Generator, Iterable
 
 import duckdb
 import pandas as pd
@@ -8,7 +8,7 @@ from clickhouse_driver import Client
 
 from . import enums, settings
 from .exceptions import ImproperlyConfigured
-from .query import Query
+from .query import Q, Query
 
 # don't show clickhouse numpy warnings:
 logging.getLogger("clickhouse_driver.columns.service").setLevel(logging.ERROR)
@@ -17,8 +17,8 @@ logging.getLogger("clickhouse_driver.columns.service").setLevel(logging.ERROR)
 @lru_cache(128)
 def _get_connection(
     driver: str,
-    uri: Optional[str] = settings.DATABASE_URI,
-    read_only: Optional[bool] = False,
+    uri: str | None = settings.DATABASE_URI,
+    read_only: bool | None = False,
 ):
     if driver not in settings.SUPPORTED_DRIVERS:
         raise ImproperlyConfigured(f"Not a supported DB driver: `{driver}`")
@@ -36,9 +36,9 @@ class Driver:
 
     def __init__(
         self,
-        table: Optional[str] = settings.DATABASE_TABLE,
-        uri: Optional[str] = settings.DATABASE_URI,
-        read_only: Optional[bool] = True,
+        table: str | None = settings.DATABASE_TABLE,
+        uri: str | None = settings.DATABASE_URI,
+        read_only: bool | None = True,
     ):
         self.table = table
         self.uri = uri
@@ -55,7 +55,7 @@ class Driver:
     def conn(self):
         return _get_connection(self.driver, self.uri, self.read_only)
 
-    def init(self, recreate: Optional[bool] = False):
+    def init(self, recreate: bool | None = False):
         if recreate:
             self.execute(self.drop_statement)
         for stmt in self.create_statement:
@@ -64,7 +64,7 @@ class Driver:
     def execute(self, *args, **kwargs):
         return self.conn.execute(*args, **kwargs)
 
-    def select(self, query_cls: Optional[Query] = Query, *args, **kwargs) -> Query:
+    def select(self, query_cls: Q | None = Query, *args, **kwargs) -> Query:
         return query_cls(driver=self, *args, **kwargs)
 
 
@@ -177,7 +177,7 @@ class Clickhouse(Driver):
         res = self.conn.insert_dataframe("INSERT INTO %s VALUES" % self.table, df)
         return res
 
-    def query(self, query: Query) -> pd.DataFrame:
+    def query(self, query: Q) -> pd.DataFrame:
         query = str(query)
         return self.conn.query_dataframe(query)
 
@@ -213,7 +213,7 @@ class Duckdb(Driver):
         return f"CREATE TYPE {name} AS ENUM ({values})"
 
     @property
-    def create_statement(self) -> Iterator[str]:
+    def create_statement(self) -> Generator[str, None, None]:
         # create enum types first
         countries = self.get_enum("country", enums.COUNTRIES)
         currencies = self.get_enum("currency", enums.CURRENCIES)
@@ -253,10 +253,10 @@ class Duckdb(Driver):
 
 @lru_cache(128)
 def get_driver(
-    driver: Optional[str] = None,
-    uri: Optional[str] = None,
-    table: Optional[str] = None,
-    read_only: Optional[bool] = True,
+    driver: str | None = None,
+    uri: str | None = None,
+    table: str | None = None,
+    read_only: bool | None = True,
 ) -> Driver:
 
     # this allows overwriting settings during runtime (aka tests)

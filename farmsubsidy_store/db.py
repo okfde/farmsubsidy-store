@@ -1,18 +1,16 @@
 import time
-from typing import Optional
 
 import pandas as pd
 
 from . import settings
-from .aggregations import AGGREGATIONS
-from .drivers import get_driver, Driver
+from .drivers import Driver, get_driver
 from .logging import get_logger
 from .util import handle_error
 
 log = get_logger(__name__)
 
 
-def init(driver: Optional[Driver] = None, recreate: Optional[bool] = False):
+def init(driver: Driver | None = None, recreate: bool | None = False):
     driver = driver or get_driver()
     try:
         driver.init(recreate=recreate)
@@ -28,9 +26,9 @@ def init(driver: Optional[Driver] = None, recreate: Optional[bool] = False):
 
 def insert(
     df: pd.DataFrame,
-    driver: Optional[Driver] = None,
-    do_raise: Optional[bool] = True,
-    fpath: Optional[str] = None,
+    driver: Driver | None = None,
+    do_raise: bool | None = True,
+    fpath: str | None = None,
 ) -> int:
     driver = driver or get_driver()
     try:
@@ -38,16 +36,6 @@ def insert(
         return res
     except Exception as e:
         handle_error(log, e, do_raise, fpath=fpath)
-
-
-def get_aggregations(driver: Optional[Driver] = None):
-    """print some aggs"""
-    driver = driver or get_driver()
-    data = {}
-    for key, get_agg in AGGREGATIONS.items():
-        df = get_agg(driver)
-        data[key] = [v for v in df.T.to_dict().values()]
-    return data
 
 
 def measure_time(query):

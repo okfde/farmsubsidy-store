@@ -45,4 +45,4 @@ def guess_scheme(value: str):
 
 
 DESCRIPTIONS = schemes.set_index("scheme_full_name")
-DESCRIPTIONS = schemes["scheme_description"].to_dict()
+DESCRIPTIONS = DESCRIPTIONS["scheme_description"].to_dict()

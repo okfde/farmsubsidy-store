@@ -1,9 +1,6 @@
-from typing import List, Optional
-
 from pydantic import BaseModel
 
 from .drivers import get_driver
-from .enrich import COUNTRYNAMES
 from .query import (
     AggregationQuery,
     CountryQuery,
@@ -16,6 +13,7 @@ from .query import (
     YearQuery,
 )
 from .schemes import DESCRIPTIONS
+from .util import get_country_name
 
 
 class BaseORM:
@@ -41,19 +39,19 @@ class Payment(BaseORM, BaseModel):
     country: str
     year: int
     recipient_id: str
-    recipient_name: Optional[str] = None  # anonymous recipients
-    recipient_fingerprint: Optional[str] = None
-    recipient_address: Optional[str] = None
+    recipient_name: str | None = None  # anonymous recipients
+    recipient_fingerprint: str | None = None
+    recipient_address: str | None = None
     recipient_country: str
-    recipient_url: Optional[str] = None
-    scheme_id: Optional[str] = None
-    scheme: Optional[str] = None
-    scheme_code: Optional[str] = None
-    scheme_description: Optional[str] = None
-    amount: Optional[float] = None
-    currency: Optional[str] = None
-    amount_original: Optional[float] = None
-    currency_original: Optional[str] = None
+    recipient_url: str | None = None
+    scheme_id: str | None = None
+    scheme: str | None = None
+    scheme_code: str | None = None
+    scheme_description: str | None = None
+    amount: float | None = None
+    currency: str | None = None
+    amount_original: float | None = None
+    currency_original: str | None = None
 
     def __str__(self):
         return f"{self.country}-{self.year}-{self.pk}"
@@ -91,11 +89,11 @@ class RecipientBase(BaseORM, BaseModel):
     _query_cls = RecipientBaseQuery
 
     id: str
-    total_payments: Optional[int] = 0
-    amount_sum: Optional[float] = 0
-    amount_avg: Optional[float] = 0
-    amount_max: Optional[float] = 0
-    amount_min: Optional[float] = 0
+    total_payments: int | None = 0
+    amount_sum: float | None = 0
+    amount_avg: float | None = 0
+    amount_max: float | None = 0
+    amount_min: float | None = 0
 
 
 class Recipient(BaseORM, BaseModel):
@@ -105,16 +103,16 @@ class Recipient(BaseORM, BaseModel):
     _query_cls = RecipientQuery
 
     id: str
-    name: Optional[List[str]] = []  # anonymous recipients
-    address: Optional[List[str]] = []
+    name: list[str] | None = []  # anonymous recipients
+    address: list[str] | None = []
     country: str
-    url: Optional[List[str]] = []
-    years: List[int] = []
-    total_payments: Optional[int] = 0
-    amount_sum: Optional[float] = 0
-    amount_avg: Optional[float] = 0
-    amount_max: Optional[float] = 0
-    amount_min: Optional[float] = 0
+    url: list[str] | None = []
+    years: list[int] = []
+    total_payments: int | None = 0
+    amount_sum: float | None = 0
+    amount_avg: float | None = 0
+    amount_max: float | None = 0
+    amount_min: float | None = 0
 
     def __init__(self, **data):  # FIXME
         data["country"] = data.pop("recipient_country", data.get("country"))
@@ -140,19 +138,21 @@ class Scheme(BaseORM, BaseModel):
     _lookup_field = "scheme_id"
     _query_cls = SchemeQuery
 
-    id: Optional[str] = None  # FIXME
+    id: str | None = None  # FIXME
     name: str
-    years: List[int]
-    countries: List[str]
+    years: list[int]
+    countries: list[str]
     total_payments: int
     total_recipients: int
-    amount_sum: Optional[float] = None
-    amount_avg: Optional[float] = None
-    amount_max: Optional[float] = None
-    amount_min: Optional[float] = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None
+    description: str | None = None
 
-    def __str__(self):
-        return self.scheme
+    def __init__(self, **data):
+        data["description"] = DESCRIPTIONS.get(data["name"])
+        super().__init__(**data)
 
     def get_recipients(self) -> RecipientQuery:
         return Recipient.select().where(scheme_id=self.id)
@@ -166,9 +166,6 @@ class Scheme(BaseORM, BaseModel):
     def get_countries(self) -> Query:
         return Country.select().where(scheme_id=self.id)
 
-    def get_description(self):
-        return DESCRIPTIONS.get(self.name)
-
 
 class Country(BaseORM, BaseModel):
     _lookup_field = "country"
@@ -178,7 +175,7 @@ class Country(BaseORM, BaseModel):
     name: str
     total_recipients: int
     total_payments: int
-    years: List[int]
+    years: list[int]
     amount_sum: float
     amount_avg: float
     amount_max: float
@@ -188,7 +185,7 @@ class Country(BaseORM, BaseModel):
         return self.country
 
     def __init__(self, **data):
-        data["name"] = COUNTRYNAMES[data["country"]]
+        data["name"] = get_country_name(data["country"])
         super().__init__(**data)
 
     def get_recipients(self) -> RecipientQuery:
@@ -211,7 +208,7 @@ class Year(BaseORM, BaseModel):
     year: int
     total_recipients: int
     total_payments: int
-    countries: List[str]
+    countries: list[str]
     amount_sum: float
     amount_avg: float
     amount_max: float
@@ -237,15 +234,15 @@ class Location(BaseORM, BaseModel):
     _lookup_field = "recipient_address"
     _query_cls = LocationQuery
 
-    location: Optional[str] = None
-    years: Optional[List[int]] = []
-    countries: Optional[List[str]] = []
-    total_recipients: Optional[int] = None
-    total_payments: Optional[int] = None
-    amount_sum: Optional[float] = None
-    amount_avg: Optional[float] = None
-    amount_max: Optional[float] = None
-    amount_min: Optional[float] = None
+    location: str | None = None
+    years: list[int] | None = []
+    countries: list[str] | None = []
+    total_recipients: int | None = None
+    total_payments: int | None = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None
 
     def __str__(self):
         return str(self.address)
@@ -266,9 +263,9 @@ class Location(BaseORM, BaseModel):
 class Aggregation(BaseORM, BaseModel):
     _query_cls = AggregationQuery
 
-    total_recipients: Optional[int] = None
-    total_payments: Optional[int] = None
-    amount_sum: Optional[float] = None
-    amount_avg: Optional[float] = None
-    amount_max: Optional[float] = None
-    amount_min: Optional[float] = None
+    total_recipients: int | None = None
+    total_payments: int | None = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None

@@ -3,11 +3,8 @@ services:
     user: "1000:1000"
     build: .
     restart: unless-stopped
-    command: "gunicorn -w 2 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 300 --name farmsubsidy_api \
-      --log-level info --log-file - farmsubsidy_store.api:app"
-    volumes:
-      - ${DATA_ROOT:-.}/logs/gunicorn-api:/var/log
-      - ${DATA_ROOT:-.}/exports:/app/data/exports
+    command: "gunicorn -w 8 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 300 --name farmsubsidy_api \
+              --log-level info --log-file - farmsubsidy_store.api.app:app"
     ports:
       - 127.0.0.1:8000:8000
     links:
@@ -17,26 +14,27 @@ services:
       DEBUG: 1
       DATABASE_URI: clickhouse
       REDIS_URL: redis://redis
+      DATA_BASIC_AUTH: ${DATA_BASIC_AUTH}
       API_CACHE: 1
-      API_ALLOWED_ORIGIN: ${API_ALLOWED_ORIGIN:-https://sql.farmsubsidy.org}
-      API_KEY: ${API_KEY}
+      API_ALLOWED_ORIGIN: ${API_ALLOWED_ORIGIN:-http://localhost:3000}
+      API_KEY: ${API_KEY:-secret-api-key}
+      PARALLEL: ${PARALLEL:-"-j4"}
+    volumes:
+      - ${DATA_ROOT:-.}/public/exports:/app/data/exports
+      - ${DATA_ROOT:-.}:/app/data
 
   clickhouse:
+    # user: "1000:1000"
     image: clickhouse/clickhouse-server
     restart: unless-stopped
-    volumes:
-      - ${DATA_ROOT:-.}/clickhouse-data:/var/lib/clickhouse
-      - ${DATA_ROOT:-.}/logs/clickhouse:/var/log/clickhouse-server
     ports:
       - 127.0.0.1:9000:9000
-      - 127.0.0.1:8123:8123
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
 
   redis:
-    image: redis:alpine
+    user: "1000:1000"
+    image: redis
     restart: unless-stopped
-    ports:
-      - 127.0.0.1:6379:6379

@@ -1,12 +1,17 @@
-FROM python:3.10
+FROM python:3.11
+
+RUN apt-get update && apt-get install -y parallel
 
 RUN apt-get update && apt-get install -y parallel
 
 COPY farmsubsidy_store /app/farmsubsidy_store
 COPY setup.py /app/setup.py
-COPY README.md /app/README.md
+COPY setup.cfg /app/setup.cfg
+COPY VERSION /app/VERSION
+COPY Makefile /app/Makefile
 
 WORKDIR /app
+RUN pip install -U pip setuptools
 RUN pip install gunicorn uvicorn
 RUN pip install -e .
 
