@@ -173,11 +173,17 @@ def validate_country(
 
 
 @lru_cache(LRU)
+def _test_name(name: str) -> bool:
+    if "*" in name:  # anonymous recipients
+        return False
+    return generate_fingerprint(name)
+
+
+@lru_cache(LRU)
 def _clean_recipient_name(
     name: str, country: str, ident: str | None = None
 ) -> str | None:
-    fp = generate_fingerprint(name)
-    if fp is not None:
+    if _test_name(name):
         return collapse_spaces(name)
     if generate_fingerprint(ident):
         return " ".join((country, ident))
