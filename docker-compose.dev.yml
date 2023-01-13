@@ -6,7 +6,7 @@ services:
     command: "gunicorn -w 8 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 300 --name farmsubsidy_api \
               --log-level info --log-file - farmsubsidy_store.api.app:app"
     ports:
-      - 127.0.0.1:5000:8000
+      - 127.0.0.1:8000:8000
     links:
       - clickhouse
       - redis
@@ -17,7 +17,7 @@ services:
       DATA_BASIC_AUTH: ${DATA_BASIC_AUTH}
       API_CACHE: 1
       API_ALLOWED_ORIGIN: ${API_ALLOWED_ORIGIN:-http://localhost:3000}
-      API_KEY: ${API_KEY}
+      API_KEY: ${API_KEY:-secret-api-key}
       PARALLEL: ${PARALLEL:-"-j4"}
     volumes:
       - ${DATA_ROOT:-.}/public/exports:/app/data/exports
