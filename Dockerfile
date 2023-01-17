@@ -2,8 +2,6 @@ FROM python:3.11
 
 RUN apt-get update && apt-get install -y parallel
 
-RUN apt-get update && apt-get install -y parallel
-
 COPY farmsubsidy_store /app/farmsubsidy_store
 COPY setup.py /app/setup.py
 COPY setup.cfg /app/setup.cfg
