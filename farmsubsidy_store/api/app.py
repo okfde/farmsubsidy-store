@@ -17,6 +17,9 @@ from .views import (
     AggregationView,
     CountryView,
     LocationView,
+    Nuts1View,
+    Nuts2View,
+    Nuts3View,
     PaymentView,
     RecipientBaseView,
     RecipientNameView,
@@ -415,6 +418,39 @@ async def locations(
     ```
     """
     view = LocationView(params)
+    return view.get(request, response)
+
+
+@app.get("/nuts1", response_model=Nuts1View.get_response_model())
+async def nuts1(
+    request: Request, response: Response, params: Nuts1View.get_params_cls() = Depends()
+):
+    """
+    EU NUTS1 regions
+    """
+    view = Nuts1View(params)
+    return view.get(request, response)
+
+
+@app.get("/nuts2", response_model=Nuts2View.get_response_model())
+async def nuts2(
+    request: Request, response: Response, params: Nuts2View.get_params_cls() = Depends()
+):
+    """
+    EU NUTS2 regions
+    """
+    view = Nuts2View(params)
+    return view.get(request, response)
+
+
+@app.get("/nuts3", response_model=Nuts3View.get_response_model())
+async def nuts3(
+    request: Request, response: Response, params: Nuts3View.get_params_cls() = Depends()
+):
+    """
+    EU NUTS3 regions
+    """
+    view = Nuts3View(params)
     return view.get(request, response)
 
 

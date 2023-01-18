@@ -33,6 +33,9 @@ class BaseFields(BaseModel):
     scheme: StringLookups = None
     scheme_code: StringLookups = None
     scheme_description: StringLookups = None
+    nuts1: StringLookups = None
+    nuts2: StringLookups = None
+    nuts3: StringLookups = None
     amount: NumericLookups = None
 
     def __init__(self, **data):

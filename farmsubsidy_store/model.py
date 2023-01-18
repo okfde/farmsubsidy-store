@@ -5,6 +5,9 @@ from .query import (
     AggregationQuery,
     CountryQuery,
     LocationQuery,
+    Nuts1Query,
+    Nuts2Query,
+    Nuts3Query,
     Query,
     RecipientBaseQuery,
     RecipientNameQuery,
@@ -55,18 +58,6 @@ class Payment(BaseORM, BaseModel):
 
     def __str__(self):
         return f"{self.country}-{self.year}-{self.pk}"
-
-    def get_recipient(self) -> "Recipient":
-        return Recipient.get(self.recipient_id)
-
-    def get_scheme(self) -> "Scheme":
-        return Scheme.get(self.scheme_id)
-
-    def get_year(self) -> "Year":
-        return Year.get(self.year)
-
-    def get_country(self) -> "Country":
-        return Country.get(self.country)
 
 
 class RecipientName(BaseORM, BaseModel):
@@ -121,18 +112,6 @@ class Recipient(BaseORM, BaseModel):
     def __str__(self):
         return "; ".join(self.name)
 
-    def get_payments(self) -> Query:
-        return Payment.select().where(recipient_id=self.id)
-
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(recipient_id=self.id)
-
-    def get_years(self) -> Query:
-        return Year.select().where(recipient_id=self.id)
-
-    def get_countries(self) -> Query:
-        return Country.select().where(recipient_id=self.id)
-
 
 class Scheme(BaseORM, BaseModel):
     _lookup_field = "scheme_id"
@@ -153,18 +132,6 @@ class Scheme(BaseORM, BaseModel):
     def __init__(self, **data):
         data["description"] = DESCRIPTIONS.get(data["name"])
         super().__init__(**data)
-
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(scheme_id=self.id)
-
-    def get_payments(self) -> Query:
-        return Payment.select().where(scheme_id=self.id)
-
-    def get_years(self) -> Query:
-        return Year.select().where(scheme_id=self.id)
-
-    def get_countries(self) -> Query:
-        return Country.select().where(scheme_id=self.id)
 
 
 class Country(BaseORM, BaseModel):
@@ -188,18 +155,6 @@ class Country(BaseORM, BaseModel):
         data["name"] = get_country_name(data["country"])
         super().__init__(**data)
 
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(country=self.country)
-
-    def get_payments(self) -> Query:
-        return Payment.select().where(country=self.country)
-
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(country=self.country)
-
-    def get_years(self) -> Query:
-        return Year.select().where(country=self.country)
-
 
 class Year(BaseORM, BaseModel):
     _lookup_field = "year"
@@ -217,18 +172,6 @@ class Year(BaseORM, BaseModel):
     def __str__(self):
         return str(self.year)
 
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(year=self.year)
-
-    def get_payments(self) -> Query:
-        return Payment.select().where(year=self.year)
-
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(year=self.year)
-
-    def get_countries(self) -> Query:
-        return Country.select().where(year=self.year)
-
 
 class Location(BaseORM, BaseModel):
     _lookup_field = "recipient_address"
@@ -245,19 +188,64 @@ class Location(BaseORM, BaseModel):
     amount_min: float | None = None
 
     def __str__(self):
-        return str(self.address)
+        return str(self.location)
 
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(year=self.address)
 
-    def get_payments(self) -> Query:
-        return Payment.select().where(year=self.address)
+class Nuts1(BaseORM, BaseModel):
+    _lookup_field = "nuts1"
+    _query_cls = Nuts1Query
 
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(year=self.address)
+    level: int | None = 1
+    nuts: str
+    years: list[int] | None = []
+    countries: list[str] | None = []
+    total_recipients: int | None = None
+    total_payments: int | None = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None
 
-    def get_countries(self) -> Query:
-        return Country.select().where(year=self.address)
+    def __str__(self):
+        return str(self.nuts)
+
+
+class Nuts2(BaseORM, BaseModel):
+    _lookup_field = "nuts2"
+    _query_cls = Nuts2Query
+
+    level: int | None = 2
+    nuts: str
+    years: list[int] | None = []
+    countries: list[str] | None = []
+    total_recipients: int | None = None
+    total_payments: int | None = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None
+
+    def __str__(self):
+        return str(self.nuts)
+
+
+class Nuts3(BaseORM, BaseModel):
+    _lookup_field = "nuts3"
+    _query_cls = Nuts3Query
+
+    level: int | None = 3
+    nuts: str
+    years: list[int] | None = []
+    countries: list[str] | None = []
+    total_recipients: int | None = None
+    total_payments: int | None = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None
+
+    def __str__(self):
+        return str(self.nuts)
 
 
 class Aggregation(BaseORM, BaseModel):

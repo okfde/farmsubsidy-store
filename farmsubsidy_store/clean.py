@@ -5,7 +5,9 @@ import pandas as pd
 import shortuuid
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
+from ftm_geocode.cache import cache
 from normality import collapse_spaces, normalize
+from pydantic import BaseModel
 
 from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
 from .exceptions import InvalidAmount, InvalidCountry, InvalidCurrency, InvalidSource
@@ -28,25 +30,28 @@ def handle_error(log, e, do_raise, **kwargs):
 UNIQUE = ["year", "country", "recipient_id", "scheme_id", "amount"]
 
 
-CLEAN_COLUMNS = (
-    "pk",
-    "country",
-    "year",
-    "recipient_id",
-    "recipient_name",
-    "recipient_fingerprint",
-    "recipient_address",
-    "recipient_country",
-    "recipient_url",
-    "scheme_id",
-    "scheme",
-    "scheme_code",
-    "scheme_description",
-    "amount",
-    "currency",
-    "amount_original",
-    "currency_original",
-)
+class Row(BaseModel):
+    pk: str
+    country: str
+    year: int
+    recipient_id: str
+    recipient_name: str
+    recipient_fingerprint: str
+    recipient_address: str | None = None
+    recipient_country: str | None = None
+    recipient_url: str | None = None
+    scheme_id: str | None = None
+    scheme: str | None = None
+    scheme_code: str | None = None
+    scheme_description: str | None = None
+    amount: float
+    currency: str
+    amount_original: float | None = None
+    currency_original: str | None = None
+    nuts: str | None = None
+    nuts1: str | None = None
+    nuts2: str | None = None
+    nuts3: str | None = None
 
 
 REQUIRED_SRC_COLUMNS = (
@@ -78,6 +83,14 @@ ADDRESS_PARTS = (
 
 
 LRU = 1_000_000
+
+
+ANONYMOUS = (
+    "**",
+    "--",
+    "private individual",
+    "nije primjenjivo",
+)
 
 
 @lru_cache(LRU)
@@ -174,8 +187,10 @@ def validate_country(
 
 @lru_cache(LRU)
 def _test_name(name: str) -> bool:
-    if "*" in name:  # anonymous recipients
-        return False
+    name = name.lower()
+    for test in ANONYMOUS:
+        if test in name:
+            return False
     return generate_fingerprint(name)
 
 
@@ -251,6 +266,24 @@ def clean_recipient_address(row: pd.Series) -> str:
     full_address = row.get("recipient_address")
     return _clean_recipient_address(
         full_address, *parts, country=row["recipient_country"]
+    )
+
+
+@lru_cache(LRU)
+def get_nuts(address_line: str, country: str) -> dict[str, str | None]:
+    nuts: dict[str, str | None] = {}
+    address = cache.get(address_line, country=country)
+    if address:
+        nuts["nuts1"] = address.nuts1_id
+        nuts["nuts2"] = address.nuts2_id
+        nuts["nuts3"] = address.nuts3_id
+    return nuts
+
+
+def apply_nuts(df: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame(
+        {**r, **get_nuts(r["recipient_address"], r["country"])}
+        for _, r in df.iterrows()
     )
 
 
@@ -346,13 +379,6 @@ def clean_amount(
         )
 
 
-def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
-    for col in CLEAN_COLUMNS:
-        if col not in df:
-            df[col] = ""
-    return df[list(CLEAN_COLUMNS)]
-
-
 def drop_header_rows(df):
     """in some source csv there are multiple header rows"""
     df = df[df["recipient_name"] != "recipient_name"]  # FIXME?
@@ -425,7 +451,9 @@ def clean(
         df["recipient_name"] = df.apply(clean_recipient_name, axis=1)
         df["recipient_fingerprint"] = df["recipient_name"].map(generate_fingerprint)
         df = apply_clean(df, bulk_errors, do_raise=not ignore_errors, fpath=fpath)
-        df = ensure_columns(df)
+        df = apply_nuts(df)
+        # validate FIXME performance
+        df = pd.DataFrame(Row(**r).dict() for _, r in df.fillna("").iterrows())
         df = df.drop_duplicates(subset=("pk",))
     for e in bulk_errors:
         _handle_error(log, e, False, fpath=fpath or "stdin")
