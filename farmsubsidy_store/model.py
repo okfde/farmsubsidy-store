@@ -25,33 +25,32 @@ from .schemes import DESCRIPTIONS
 
 
 class NutsRegions(BaseModel):
-    nuts1: str | None = None
-    nuts2: str | None = None
-    nuts3: str | None = None
-    # nuts1: Nuts | None = None
-    # nuts2: Nuts | None = None
-    # nuts3: Nuts | None = None
+    nuts1: Nuts | None = None
+    nuts2: Nuts | None = None
+    nuts3: Nuts | None = None
+
+    def __init__(self, **data):
+        if isinstance(data.get("nuts3"), str):
+            for k in ("nuts1", "nuts2", "nuts3"):
+                data[k] = Nuts.from_code(data[k])
+        super().__init__(**data)
 
 
 class MultiNutsRegions(BaseModel):
-    nuts1: list[str] | None = None
-    nuts2: list[str] | None = None
-    nuts3: list[str] | None = None
-    # nuts1: list[Nuts] | None = None
-    # nuts2: list[Nuts] | None = None
-    # nuts3: list[Nuts] | None = None
+    nuts1: list[Nuts] | None = None
+    nuts2: list[Nuts] | None = None
+    nuts3: list[Nuts] | None = None
 
     def __init__(self, **data):
-        data["nuts1"] = data.pop("nuts1_codes", [])
-        data["nuts2"] = data.pop("nuts2_codes", [])
-        data["nuts3"] = data.pop("nuts3_codes", [])
+        if "nuts3" not in data:
+            data.update(get_nuts(data))
         super().__init__(**data)
 
 
 def get_nuts(data: dict[str, Any]) -> dict[str, list[Nuts]]:
     nuts = defaultdict(list)
     for k in ("nuts1", "nuts2", "nuts3"):
-        for n in ensure_list(data.get(k)):
+        for n in ensure_list(data.get(f"{k}_codes")):
             nuts[k].append(Nuts.from_code(n))
     return nuts
 
@@ -243,23 +242,25 @@ class NutsBase(BaseORM, Nuts):
     amount_max: float | None = None
     amount_min: float | None = None
 
+    def __init__(self, **data):
+        if "nuts" in data:
+            data.update(Nuts.from_code(data["nuts"]))
+        super().__init__(**data)
+
 
 class Nuts1(NutsBase):
     _lookup_field = "nuts1"
     _query_cls = Nuts1Query
-    level: int | None = 1
 
 
 class Nuts2(NutsBase):
     _lookup_field = "nuts2"
     _query_cls = Nuts2Query
-    level: int | None = 2
 
 
 class Nuts3(NutsBase):
     _lookup_field = "nuts3"
     _query_cls = Nuts3Query
-    level: int | None = 3
 
 
 class Aggregation(BaseORM, BaseModel):

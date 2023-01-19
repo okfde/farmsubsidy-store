@@ -298,6 +298,7 @@ class SchemeQuery(Query):
         "max(amount) AS amount_max",
         "min(amount) AS amount_min",
     )
+    where_lookup = {"scheme_id__null": False}
     group_by_fields = ("scheme_id",)
     order_by_fields = ("scheme_id",)
 
