@@ -312,7 +312,24 @@ class LocationView(BaseView):
     model = models.Location
 
 
-class AggregationView(RestrictedView):  # FIXME
+class Nuts1View(BaseView):
+    params_cls = AggregatedViewParams
+    model = models.Nuts1
+
+
+class Nuts2View(BaseView):
+    params_cls = AggregatedViewParams
+    model = models.Nuts2
+
+
+class Nuts3View(BaseView):
+    params_cls = AggregatedViewParams
+    model = models.Nuts3
+
+
+class AggregationView(
+    RestrictedView
+):  # FIXME ?  ensure aggregations are not exposing too much detail, then they don't have to be restricted
     params_cls = BaseViewParams
     model = models.Aggregation
 

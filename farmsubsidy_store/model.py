@@ -1,3 +1,9 @@
+from collections import defaultdict
+from typing import Any
+
+from banal import ensure_list
+from ftm_geocode.nuts import Nuts
+from ftm_geocode.util import get_country_name
 from pydantic import BaseModel
 
 from .drivers import get_driver
@@ -5,6 +11,9 @@ from .query import (
     AggregationQuery,
     CountryQuery,
     LocationQuery,
+    Nuts1Query,
+    Nuts2Query,
+    Nuts3Query,
     Query,
     RecipientBaseQuery,
     RecipientNameQuery,
@@ -13,7 +22,37 @@ from .query import (
     YearQuery,
 )
 from .schemes import DESCRIPTIONS
-from .util import get_country_name
+
+
+class NutsRegions(BaseModel):
+    nuts1: Nuts | None = None
+    nuts2: Nuts | None = None
+    nuts3: Nuts | None = None
+
+    def __init__(self, **data):
+        if isinstance(data.get("nuts3"), str):
+            for k in ("nuts1", "nuts2", "nuts3"):
+                data[k] = Nuts.from_code(data[k])
+        super().__init__(**data)
+
+
+class MultiNutsRegions(BaseModel):
+    nuts1: list[Nuts] | None = None
+    nuts2: list[Nuts] | None = None
+    nuts3: list[Nuts] | None = None
+
+    def __init__(self, **data):
+        if "nuts3" not in data:
+            data.update(get_nuts(data))
+        super().__init__(**data)
+
+
+def get_nuts(data: dict[str, Any]) -> dict[str, list[Nuts]]:
+    nuts = defaultdict(list)
+    for k in ("nuts1", "nuts2", "nuts3"):
+        for n in ensure_list(data.get(f"{k}_codes")):
+            nuts[k].append(Nuts.from_code(n))
+    return nuts
 
 
 class BaseORM:
@@ -34,7 +73,7 @@ class BaseORM:
         return db.select(query_cls=cls._query_cls, result_cls=cls, fields=fields)
 
 
-class Payment(BaseORM, BaseModel):
+class Payment(NutsRegions, BaseORM, BaseModel):
     pk: str
     country: str
     year: int
@@ -56,17 +95,10 @@ class Payment(BaseORM, BaseModel):
     def __str__(self):
         return f"{self.country}-{self.year}-{self.pk}"
 
-    def get_recipient(self) -> "Recipient":
-        return Recipient.get(self.recipient_id)
-
-    def get_scheme(self) -> "Scheme":
-        return Scheme.get(self.scheme_id)
-
-    def get_year(self) -> "Year":
-        return Year.get(self.year)
-
-    def get_country(self) -> "Country":
-        return Country.get(self.country)
+    # def __init__(self, **data):
+    #     nuts = {k: v[0] for k, v in get_nuts(data).items()}
+    #     data.update(nuts)
+    #     super().__init__(**data)
 
 
 class RecipientName(BaseORM, BaseModel):
@@ -96,7 +128,7 @@ class RecipientBase(BaseORM, BaseModel):
     amount_min: float | None = 0
 
 
-class Recipient(BaseORM, BaseModel):
+class Recipient(MultiNutsRegions, BaseORM, BaseModel):
     """name, address, country, url are always multi-valued"""
 
     _lookup_field = "recipient_id"
@@ -116,22 +148,11 @@ class Recipient(BaseORM, BaseModel):
 
     def __init__(self, **data):  # FIXME
         data["country"] = data.pop("recipient_country", data.get("country"))
+        # data.update(get_nuts(data))
         super().__init__(**data)
 
     def __str__(self):
         return "; ".join(self.name)
-
-    def get_payments(self) -> Query:
-        return Payment.select().where(recipient_id=self.id)
-
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(recipient_id=self.id)
-
-    def get_years(self) -> Query:
-        return Year.select().where(recipient_id=self.id)
-
-    def get_countries(self) -> Query:
-        return Country.select().where(recipient_id=self.id)
 
 
 class Scheme(BaseORM, BaseModel):
@@ -153,18 +174,6 @@ class Scheme(BaseORM, BaseModel):
     def __init__(self, **data):
         data["description"] = DESCRIPTIONS.get(data["name"])
         super().__init__(**data)
-
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(scheme_id=self.id)
-
-    def get_payments(self) -> Query:
-        return Payment.select().where(scheme_id=self.id)
-
-    def get_years(self) -> Query:
-        return Year.select().where(scheme_id=self.id)
-
-    def get_countries(self) -> Query:
-        return Country.select().where(scheme_id=self.id)
 
 
 class Country(BaseORM, BaseModel):
@@ -188,18 +197,6 @@ class Country(BaseORM, BaseModel):
         data["name"] = get_country_name(data["country"])
         super().__init__(**data)
 
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(country=self.country)
-
-    def get_payments(self) -> Query:
-        return Payment.select().where(country=self.country)
-
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(country=self.country)
-
-    def get_years(self) -> Query:
-        return Year.select().where(country=self.country)
-
 
 class Year(BaseORM, BaseModel):
     _lookup_field = "year"
@@ -217,20 +214,8 @@ class Year(BaseORM, BaseModel):
     def __str__(self):
         return str(self.year)
 
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(year=self.year)
 
-    def get_payments(self) -> Query:
-        return Payment.select().where(year=self.year)
-
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(year=self.year)
-
-    def get_countries(self) -> Query:
-        return Country.select().where(year=self.year)
-
-
-class Location(BaseORM, BaseModel):
+class Location(MultiNutsRegions, BaseORM, BaseModel):
     _lookup_field = "recipient_address"
     _query_cls = LocationQuery
 
@@ -245,19 +230,37 @@ class Location(BaseORM, BaseModel):
     amount_min: float | None = None
 
     def __str__(self):
-        return str(self.address)
+        return str(self.location)
 
-    def get_recipients(self) -> RecipientQuery:
-        return Recipient.select().where(year=self.address)
 
-    def get_payments(self) -> Query:
-        return Payment.select().where(year=self.address)
+class NutsBase(BaseORM, Nuts):
+    years: list[int] | None = []
+    total_recipients: int | None = None
+    total_payments: int | None = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None
 
-    def get_schemes(self) -> Query:
-        return Scheme.select().where(year=self.address)
+    def __init__(self, **data):
+        if "nuts" in data:
+            data.update(Nuts.from_code(data["nuts"]))
+        super().__init__(**data)
 
-    def get_countries(self) -> Query:
-        return Country.select().where(year=self.address)
+
+class Nuts1(NutsBase):
+    _lookup_field = "nuts1"
+    _query_cls = Nuts1Query
+
+
+class Nuts2(NutsBase):
+    _lookup_field = "nuts2"
+    _query_cls = Nuts2Query
+
+
+class Nuts3(NutsBase):
+    _lookup_field = "nuts3"
+    _query_cls = Nuts3Query
 
 
 class Aggregation(BaseORM, BaseModel):

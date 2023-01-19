@@ -30,6 +30,7 @@ class Query:
     fields = ["*"]
     group_by_fields = None
     order_by_fields = None
+    where_lookup = {}
 
     def __init__(
         self,
@@ -60,7 +61,7 @@ class Query:
         self.order_direction = order_direction
         self.limit = limit
         self.offset = offset
-        self.where_lookup = where_lookup
+        self.where_lookup = where_lookup or self.where_lookup
         self.having_lookup = having_lookup
 
     def __str__(self) -> str:
@@ -249,6 +250,9 @@ class RecipientQuery(Query):
         "groupUniqArray(recipient_name) AS name",
         "arrayElement(groupUniqArray(recipient_country), 1) AS recipient_country",
         "groupUniqArray(recipient_address) AS address",
+        "groupUniqArray(nuts1) AS nuts1_codes",
+        "groupUniqArray(nuts2) AS nuts2_codes",
+        "groupUniqArray(nuts3) AS nuts3_codes",
         "sum(amount) AS amount_sum",
         "round(avg(amount), 2) AS amount_avg",
         "max(amount) AS amount_max",
@@ -294,6 +298,7 @@ class SchemeQuery(Query):
         "max(amount) AS amount_max",
         "min(amount) AS amount_min",
     )
+    where_lookup = {"scheme_id__null": False}
     group_by_fields = ("scheme_id",)
     order_by_fields = ("scheme_id",)
 
@@ -333,6 +338,9 @@ class LocationQuery(Query):
         "recipient_address as location",
         "groupUniqArray(year) AS years",
         "groupUniqArray(country) AS countries",
+        "groupUniqArray(nuts1) AS nuts1_codes",
+        "groupUniqArray(nuts2) AS nuts2_codes",
+        "groupUniqArray(nuts3) AS nuts3_codes",
         "count(*) AS total_payments",
         "count(distinct recipient_id) AS total_recipients",
         "sum(amount) AS amount_sum",
@@ -342,6 +350,54 @@ class LocationQuery(Query):
     )
     group_by_fields = ("recipient_address",)
     order_by_fields = ("recipient_address",)
+
+
+class Nuts1Query(Query):
+    fields = (
+        "nuts1 AS nuts",
+        "groupUniqArray(year) AS years",
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
+    )
+    where_lookup = {"nuts1__null": False}
+    group_by_fields = ("nuts1",)
+    order_by_fields = ("nuts1",)
+
+
+class Nuts2Query(Query):
+    fields = (
+        "nuts2 AS nuts",
+        "groupUniqArray(year) AS years",
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
+    )
+    where_lookup = {"nuts2__null": False}
+    group_by_fields = ("nuts2",)
+    order_by_fields = ("nuts2",)
+
+
+class Nuts3Query(Query):
+    fields = (
+        "nuts3 AS nuts",
+        "groupUniqArray(year) AS years",
+        "count(*) AS total_payments",
+        "count(distinct recipient_id) AS total_recipients",
+        "sum(amount) AS amount_sum",
+        "round(avg(amount), 2) AS amount_avg",
+        "max(amount) AS amount_max",
+        "min(amount) AS amount_min",
+    )
+    where_lookup = {"nuts3__null": False}
+    group_by_fields = ("nuts3",)
+    order_by_fields = ("nuts3",)
 
 
 class AggregationQuery(Query):

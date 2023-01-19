@@ -88,7 +88,9 @@ class Clickhouse(Driver):
         `amount`                  Decimal(18, 2) NULL,
         `currency`                {currency} NULL,
         `amount_original`         Decimal(18, 2) NULL,
-        `currency_original`       {currency} NULL,
+        `nuts1`                   {nuts1} NULL,
+        `nuts2`                   {nuts2} NULL,
+        `nuts3`                   {nuts3} NULL,
         INDEX fp_ix (recipient_fingerprint) TYPE ngrambf_v1(3, 256, 2, 0) GRANULARITY 4
     ) ENGINE = ReplacingMergeTree()
     PRIMARY KEY (country, year, recipient_id)
@@ -102,11 +104,15 @@ class Clickhouse(Driver):
     @property
     def create_statement(self) -> str:
         # implicit enum types
-        country = self.get_enum(enums.COUNTRIES)
-        currency = self.get_enum(enums.CURRENCIES)
-        year = self.get_enum(enums.YEARS)
+        nuts1, nuts2, nuts3 = enums.get_nuts_enums()
         create_table = self.CREATE_TABLE.format(
-            table=self.table, country=country, currency=currency, year=year
+            table=self.table,
+            country=self.get_enum(enums.COUNTRIES),
+            currency=self.get_enum(enums.CURRENCIES),
+            year=self.get_enum(enums.YEARS),
+            nuts1=self.get_enum(nuts1),
+            nuts2=self.get_enum(nuts2),
+            nuts3=self.get_enum(nuts3),
         )
         by_id = f"""
         ALTER TABLE {self.table} ADD PROJECTION {self.table}_id (
@@ -156,6 +162,12 @@ class Clickhouse(Driver):
             ORDER BY recipient_address,country,year
         )
         """
+        by_nuts = f"""
+        ALTER TABLE {self.table} ADD PROJECTION {self.table}_nuts (
+            SELECT *
+            ORDER BY country,nuts1,nuts2,nuts3,year
+        )
+        """
 
         yield create_table
         yield by_id
@@ -166,6 +178,7 @@ class Clickhouse(Driver):
         yield by_scheme
         yield by_scheme_id
         yield by_location
+        yield by_nuts
 
     @property
     def drop_statement(self) -> str:
@@ -204,7 +217,10 @@ class Duckdb(Driver):
         amount                  DECIMAL(18, 2),
         currency                currency NOT NULL,
         amount_original         DECIMAL(18, 2),
-        currency_original       currency
+        currency_original       currency,
+        nuts1                   nuts1,
+        nuts2                   nuts2,
+        nuts3                   nuts3
     )
     """
 
@@ -217,6 +233,10 @@ class Duckdb(Driver):
         # create enum types first
         countries = self.get_enum("country", enums.COUNTRIES)
         currencies = self.get_enum("currency", enums.CURRENCIES)
+        nuts1, nuts2, nuts3 = enums.get_nuts_enums()
+        nuts1 = self.get_enum("nuts1", nuts1)
+        nuts2 = self.get_enum("nuts2", nuts2)
+        nuts3 = self.get_enum("nuts3", nuts3)
         years = self.get_enum("year", enums.YEARS)
         table = self.CREATE_TABLE.format(table=self.table)
 
@@ -231,6 +251,9 @@ class Duckdb(Driver):
         yield countries
         yield currencies
         yield years
+        yield nuts1
+        yield nuts2
+        yield nuts3
         yield table
         for ix in indexes:
             yield ix

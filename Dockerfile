@@ -1,19 +1,17 @@
-FROM python:3.11
+FROM ghcr.io/simonwoerpel/ftm-geocode
 
 RUN apt-get update && apt-get install -y parallel
 
-RUN apt-get update && apt-get install -y parallel
+COPY farmsubsidy_store /farmsubsidy/farmsubsidy_store
+COPY setup.py /farmsubsidy/setup.py
+COPY setup.cfg /farmsubsidy/setup.cfg
+COPY VERSION /farmsubsidy/VERSION
+COPY Makefile /farmsubsidy/Makefile
 
-COPY farmsubsidy_store /app/farmsubsidy_store
-COPY setup.py /app/setup.py
-COPY setup.cfg /app/setup.cfg
-COPY VERSION /app/VERSION
-COPY Makefile /app/Makefile
-
-WORKDIR /app
+WORKDIR /farmsubsidy
 RUN pip install -U pip setuptools
 RUN pip install gunicorn uvicorn
-RUN pip install -e .
+RUN pip install -e ".[geo]"
 
 
 # Run the green unicorn

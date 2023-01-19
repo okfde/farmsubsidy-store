@@ -1,17 +1,21 @@
 import re
 from functools import lru_cache
+from typing import Any
 
 import pandas as pd
 import shortuuid
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
+from ftm_geocode.cache import get_cache
+from ftm_geocode.util import get_country_code, get_country_name
 from normality import collapse_spaces, normalize
 
 from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
 from .exceptions import InvalidAmount, InvalidCountry, InvalidCurrency, InvalidSource
 from .logging import get_logger
+from .model import Payment
 from .schemes import guess_scheme
-from .util import clear_lru, get_country_code, get_country_name
+from .util import clear_lru
 from .util import handle_error as _handle_error
 
 log = get_logger(__name__)
@@ -28,42 +32,24 @@ def handle_error(log, e, do_raise, **kwargs):
 UNIQUE = ["year", "country", "recipient_id", "scheme_id", "amount"]
 
 
-CLEAN_COLUMNS = (
-    "pk",
-    "country",
-    "year",
-    "recipient_id",
-    "recipient_name",
-    "recipient_fingerprint",
-    "recipient_address",
-    "recipient_country",
-    "recipient_url",
-    "scheme_id",
-    "scheme",
-    "scheme_code",
-    "scheme_description",
-    "amount",
-    "currency",
-    "amount_original",
-    "currency_original",
-)
-
-
 REQUIRED_SRC_COLUMNS = (
     # column name, *alternatives
     ("recipient_name",),
     ("recipient_country", "country"),
-    # (
-    #     "scheme",
-    #     "scheme_name",
-    #     "scheme_1",
-    #     "scheme_2",
-    #     "scheme_code_short",
-    #     "scheme_description",
-    # ),
     ("amount",),
     ("currency",),
     ("year",),
+)
+
+
+SRC_COLUMNS = (
+    # column name, alternative
+    # here: RO fixes
+    ("recipient_name", "denumire_beneficiar"),
+    ("recipient_id", "cod_unic"),
+    ("recipient_location", "localitate"),
+    ("scheme", "masura"),
+    ("amount", "cuantum"),
 )
 
 
@@ -78,6 +64,9 @@ ADDRESS_PARTS = (
 
 
 LRU = 1_000_000
+
+
+EMPTY = ("**", "--", "private individual", "nije primjenjivo", "nan # nan", "ro-nan")
 
 
 @lru_cache(LRU)
@@ -137,7 +126,6 @@ def clean_source(
 ) -> pd.DataFrame:
     """do a bit string cleaning, insert year & country data if not present"""
 
-    @lru_cache(LRU)
     def _clean(v):
         if isinstance(v, str):
             return v.strip("\"' ',").strip()
@@ -152,6 +140,19 @@ def clean_source(
         df["country"] = country
     else:
         df["country"] = df["country"].fillna(country).map(lambda x: x or country)
+
+    # load data from other columns (FIXME ro)
+    def _get_value(row: pd.Series, col, *alt_cols) -> str | None:
+        value = row.get(col)
+        if _test_value(value):
+            return value
+        for col in alt_cols:
+            value = row.get(col)
+            if _test_value(value):
+                return value
+
+    for col, *alt_cols in SRC_COLUMNS:
+        df[col] = df.apply(lambda r: _get_value(r, col, *alt_cols), axis=1)
 
     return df.applymap(_clean)
 
@@ -173,11 +174,21 @@ def validate_country(
 
 
 @lru_cache(LRU)
+def _test_value(value: Any) -> bool:
+    if not value or pd.isna(value):
+        return False
+    value = value.lower()
+    for test in EMPTY:
+        if test in value:
+            return False
+    return bool(generate_fingerprint(value))
+
+
+@lru_cache(LRU)
 def _clean_recipient_name(
     name: str, country: str, ident: str | None = None
 ) -> str | None:
-    fp = generate_fingerprint(name)
-    if fp is not None:
+    if _test_value(name):
         return collapse_spaces(name)
     if generate_fingerprint(ident):
         return " ".join((country, ident))
@@ -248,6 +259,25 @@ def clean_recipient_address(row: pd.Series) -> str:
     )
 
 
+@lru_cache(LRU)
+def get_nuts(address_line: str, country: str) -> dict[str, str | None]:
+    nuts: dict[str, str | None] = {}
+    cache = get_cache()
+    address = cache.get(address_line, country=country)
+    if address:
+        nuts["nuts1"] = address.nuts1_id
+        nuts["nuts2"] = address.nuts2_id
+        nuts["nuts3"] = address.nuts3_id
+    return nuts
+
+
+def apply_nuts(df: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame(
+        {**r, **get_nuts(r["recipient_address"], r["country"])}
+        for _, r in df.iterrows()
+    )
+
+
 def clean_recipient_country(
     row: pd.Series, bulk_errors: set, do_raise: bool, fpath: str | None = None
 ) -> str:
@@ -274,10 +304,11 @@ def clean_scheme_id(scheme: str) -> str:
     return make_entity_id(normalize(scheme))
 
 
-@lru_cache(LRU)
-def to_decimal(value: str, allow_empty: bool | None = True) -> float:
-    if value is None and not allow_empty:
-        raise ValueError
+def to_decimal(value: str | None, allow_empty: bool | None = True) -> float | None:
+    if value is None:
+        if not allow_empty:
+            raise ValueError
+        return value
     if "," in value:
         if len(value.split(",")[-1]) > 2:
             raise ValueError
@@ -338,13 +369,6 @@ def clean_amount(
         handle_error(
             log, e, do_raise, row=dict(row), fpath=fpath, bulk_errors=bulk_errors
         )
-
-
-def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
-    for col in CLEAN_COLUMNS:
-        if col not in df:
-            df[col] = ""
-    return df[list(CLEAN_COLUMNS)]
 
 
 def drop_header_rows(df):
@@ -419,8 +443,14 @@ def clean(
         df["recipient_name"] = df.apply(clean_recipient_name, axis=1)
         df["recipient_fingerprint"] = df["recipient_name"].map(generate_fingerprint)
         df = apply_clean(df, bulk_errors, do_raise=not ignore_errors, fpath=fpath)
-        df = ensure_columns(df)
+        df = apply_nuts(df)
+        # validate FIXME performance
+        # df = pd.DataFrame(Payment(**r).dict() for _, r in df.fillna("").iterrows())
         df = df.drop_duplicates(subset=("pk",))
+        for c in Payment.__fields__:
+            if c not in df:
+                df[c] = ""
+        df = df[[c for c in Payment.__fields__]]
     for e in bulk_errors:
         _handle_error(log, e, False, fpath=fpath or "stdin")
     clear_lru()

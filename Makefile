@@ -48,8 +48,11 @@ ftm: clean
 clickhouse:  # for dev, doesn't persist data
 	docker run -p 8123:8123 -p 9000:9000 --ulimit nofile=262144:262144 clickhouse/clickhouse-server
 
-api:  # for developement
-	DEBUG=1 uvicorn farmsubsidy_store.api.app:app --reload
+api:  install.api  # for developement
+	DEBUG=1 uvicorn farmsubsidy_store.api:app --reload
+
+install.api:
+	pip install uvicorn
 
 install.dev:
 	pip install coverage nose moto pytest pytest-cov black flake8 isort ipdb mypy bump2version
