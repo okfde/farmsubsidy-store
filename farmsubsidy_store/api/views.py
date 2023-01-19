@@ -75,7 +75,10 @@ class BaseView:
         if self.params.output == OutputFormat.csv:
             return Response(content=result_data, media_type="text/csv")
         if self.params.output == OutputFormat.export:
-            result.export_url = str(furl(request.base_url) / result_data)
+            export_url = furl(request.base_url) / result_data
+            if settings.API_HTTPS:
+                export_url.scheme = "https"
+            result.export_url = str(export_url)
             return result
 
         # normal json response

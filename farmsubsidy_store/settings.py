@@ -43,6 +43,7 @@ API_KEY = get_env("API_KEY", "secret-api-key")
 API_HTPASSWD = get_env("API_HTPASSWD", os.path.join(DATA_ROOT, ".htpasswd"))
 API_TOKEN_SECRET = get_env("API_TOKEN_SECRET", "fsscrt")
 API_TOKEN_LIFETIME = int(get_env("API_TOKEN_LIFETIME", 60 * 24))  # in minutes
+API_HTTPS = as_bool(get_env("API_HTTPS"), False)
 
 PUBLIC_YEARS = get_env("API_PUBLIC_YEARS", "2020,2021").split(",")
 EXPORT_DIRECTORY = get_env("EXPORT_DIRECTORY", os.path.join(DATA_ROOT, "exports"))
