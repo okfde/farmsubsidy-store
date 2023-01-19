@@ -3,6 +3,7 @@ from typing import Any
 
 from banal import ensure_list
 from ftm_geocode.nuts import Nuts
+from ftm_geocode.util import get_country_name
 from pydantic import BaseModel
 
 from .drivers import get_driver
@@ -21,7 +22,6 @@ from .query import (
     YearQuery,
 )
 from .schemes import DESCRIPTIONS
-from .util import get_country_name
 
 
 class NutsRegions(BaseModel):
