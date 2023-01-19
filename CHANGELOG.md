@@ -10,7 +10,7 @@ Below a list of data updates since the relaunch of the platform on Dec. 1st, 202
 
 ## 2023-01-19
 
-- Added [](https://ec.europa.eu/eurostat/web/nuts/national-structures) data & aggregations.
+- Added [EU NUTS levels](https://ec.europa.eu/eurostat/web/nuts/national-structures) data & aggregations.
 - Fixed some data cleaning, this slightly changes some of the aggregated numbers on the platform.
 
 
