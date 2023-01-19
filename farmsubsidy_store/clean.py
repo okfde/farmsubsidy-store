@@ -6,14 +6,15 @@ import shortuuid
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
 from ftm_geocode.cache import cache
+from ftm_geocode.util import get_country_code, get_country_name
 from normality import collapse_spaces, normalize
-from pydantic import BaseModel
 
 from .currency_conversion import CURRENCIES, CURRENCY_LOOKUP, convert_to_euro
 from .exceptions import InvalidAmount, InvalidCountry, InvalidCurrency, InvalidSource
 from .logging import get_logger
+from .model import Payment
 from .schemes import guess_scheme
-from .util import clear_lru, get_country_code, get_country_name
+from .util import clear_lru
 from .util import handle_error as _handle_error
 
 log = get_logger(__name__)
@@ -28,30 +29,6 @@ def handle_error(log, e, do_raise, **kwargs):
 
 
 UNIQUE = ["year", "country", "recipient_id", "scheme_id", "amount"]
-
-
-class Row(BaseModel):
-    pk: str
-    country: str
-    year: int
-    recipient_id: str
-    recipient_name: str
-    recipient_fingerprint: str
-    recipient_address: str | None = None
-    recipient_country: str | None = None
-    recipient_url: str | None = None
-    scheme_id: str | None = None
-    scheme: str | None = None
-    scheme_code: str | None = None
-    scheme_description: str | None = None
-    amount: float
-    currency: str
-    amount_original: float | None = None
-    currency_original: str | None = None
-    nuts: str | None = None
-    nuts1: str | None = None
-    nuts2: str | None = None
-    nuts3: str | None = None
 
 
 REQUIRED_SRC_COLUMNS = (
@@ -150,7 +127,6 @@ def clean_source(
 ) -> pd.DataFrame:
     """do a bit string cleaning, insert year & country data if not present"""
 
-    @lru_cache(LRU)
     def _clean(v):
         if isinstance(v, str):
             return v.strip("\"' ',").strip()
@@ -313,7 +289,6 @@ def clean_scheme_id(scheme: str) -> str:
     return make_entity_id(normalize(scheme))
 
 
-@lru_cache(LRU)
 def to_decimal(value: str, allow_empty: bool | None = True) -> float:
     if value is None and not allow_empty:
         raise ValueError
@@ -453,7 +428,10 @@ def clean(
         df = apply_clean(df, bulk_errors, do_raise=not ignore_errors, fpath=fpath)
         df = apply_nuts(df)
         # validate FIXME performance
-        df = pd.DataFrame(Row(**r).dict() for _, r in df.fillna("").iterrows())
+        # df = pd.DataFrame(Payment(**r).dict() for _, r in df.fillna("").iterrows())
+        for c in Payment.__fields__:
+            if c not in df:
+                df[c] = ""
         df = df.drop_duplicates(subset=("pk",))
     for e in bulk_errors:
         _handle_error(log, e, False, fpath=fpath or "stdin")

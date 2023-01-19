@@ -1,3 +1,8 @@
+from collections import defaultdict
+from typing import Any
+
+from banal import ensure_list
+from ftm_geocode.nuts import Nuts
 from pydantic import BaseModel
 
 from .drivers import get_driver
@@ -19,6 +24,38 @@ from .schemes import DESCRIPTIONS
 from .util import get_country_name
 
 
+class NutsRegions(BaseModel):
+    nuts1: str | None = None
+    nuts2: str | None = None
+    nuts3: str | None = None
+    # nuts1: Nuts | None = None
+    # nuts2: Nuts | None = None
+    # nuts3: Nuts | None = None
+
+
+class MultiNutsRegions(BaseModel):
+    nuts1: list[str] | None = None
+    nuts2: list[str] | None = None
+    nuts3: list[str] | None = None
+    # nuts1: list[Nuts] | None = None
+    # nuts2: list[Nuts] | None = None
+    # nuts3: list[Nuts] | None = None
+
+    def __init__(self, **data):
+        data["nuts1"] = data.pop("nuts1_codes", [])
+        data["nuts2"] = data.pop("nuts2_codes", [])
+        data["nuts3"] = data.pop("nuts3_codes", [])
+        super().__init__(**data)
+
+
+def get_nuts(data: dict[str, Any]) -> dict[str, list[Nuts]]:
+    nuts = defaultdict(list)
+    for k in ("nuts1", "nuts2", "nuts3"):
+        for n in ensure_list(data.get(k)):
+            nuts[k].append(Nuts.from_code(n))
+    return nuts
+
+
 class BaseORM:
     _lookup_field = "pk"
     _query_cls = Query
@@ -37,7 +74,7 @@ class BaseORM:
         return db.select(query_cls=cls._query_cls, result_cls=cls, fields=fields)
 
 
-class Payment(BaseORM, BaseModel):
+class Payment(NutsRegions, BaseORM, BaseModel):
     pk: str
     country: str
     year: int
@@ -58,6 +95,11 @@ class Payment(BaseORM, BaseModel):
 
     def __str__(self):
         return f"{self.country}-{self.year}-{self.pk}"
+
+    # def __init__(self, **data):
+    #     nuts = {k: v[0] for k, v in get_nuts(data).items()}
+    #     data.update(nuts)
+    #     super().__init__(**data)
 
 
 class RecipientName(BaseORM, BaseModel):
@@ -87,7 +129,7 @@ class RecipientBase(BaseORM, BaseModel):
     amount_min: float | None = 0
 
 
-class Recipient(BaseORM, BaseModel):
+class Recipient(MultiNutsRegions, BaseORM, BaseModel):
     """name, address, country, url are always multi-valued"""
 
     _lookup_field = "recipient_id"
@@ -107,6 +149,7 @@ class Recipient(BaseORM, BaseModel):
 
     def __init__(self, **data):  # FIXME
         data["country"] = data.pop("recipient_country", data.get("country"))
+        # data.update(get_nuts(data))
         super().__init__(**data)
 
     def __str__(self):
@@ -173,7 +216,7 @@ class Year(BaseORM, BaseModel):
         return str(self.year)
 
 
-class Location(BaseORM, BaseModel):
+class Location(MultiNutsRegions, BaseORM, BaseModel):
     _lookup_field = "recipient_address"
     _query_cls = LocationQuery
 
@@ -191,61 +234,32 @@ class Location(BaseORM, BaseModel):
         return str(self.location)
 
 
-class Nuts1(BaseORM, BaseModel):
+class NutsBase(BaseORM, Nuts):
+    years: list[int] | None = []
+    total_recipients: int | None = None
+    total_payments: int | None = None
+    amount_sum: float | None = None
+    amount_avg: float | None = None
+    amount_max: float | None = None
+    amount_min: float | None = None
+
+
+class Nuts1(NutsBase):
     _lookup_field = "nuts1"
     _query_cls = Nuts1Query
-
     level: int | None = 1
-    nuts: str
-    years: list[int] | None = []
-    countries: list[str] | None = []
-    total_recipients: int | None = None
-    total_payments: int | None = None
-    amount_sum: float | None = None
-    amount_avg: float | None = None
-    amount_max: float | None = None
-    amount_min: float | None = None
-
-    def __str__(self):
-        return str(self.nuts)
 
 
-class Nuts2(BaseORM, BaseModel):
+class Nuts2(NutsBase):
     _lookup_field = "nuts2"
     _query_cls = Nuts2Query
-
     level: int | None = 2
-    nuts: str
-    years: list[int] | None = []
-    countries: list[str] | None = []
-    total_recipients: int | None = None
-    total_payments: int | None = None
-    amount_sum: float | None = None
-    amount_avg: float | None = None
-    amount_max: float | None = None
-    amount_min: float | None = None
-
-    def __str__(self):
-        return str(self.nuts)
 
 
-class Nuts3(BaseORM, BaseModel):
+class Nuts3(NutsBase):
     _lookup_field = "nuts3"
     _query_cls = Nuts3Query
-
     level: int | None = 3
-    nuts: str
-    years: list[int] | None = []
-    countries: list[str] | None = []
-    total_recipients: int | None = None
-    total_payments: int | None = None
-    amount_sum: float | None = None
-    amount_avg: float | None = None
-    amount_max: float | None = None
-    amount_min: float | None = None
-
-    def __str__(self):
-        return str(self.nuts)
 
 
 class Aggregation(BaseORM, BaseModel):
