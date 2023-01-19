@@ -6,7 +6,7 @@ import pandas as pd
 import shortuuid
 from fingerprints import generate as _generate_fingerprint
 from followthemoney.util import make_entity_id as _make_entity_id
-from ftm_geocode.cache import cache
+from ftm_geocode.cache import get_cache
 from ftm_geocode.util import get_country_code, get_country_name
 from normality import collapse_spaces, normalize
 
@@ -262,6 +262,7 @@ def clean_recipient_address(row: pd.Series) -> str:
 @lru_cache(LRU)
 def get_nuts(address_line: str, country: str) -> dict[str, str | None]:
     nuts: dict[str, str | None] = {}
+    cache = get_cache()
     address = cache.get(address_line, country=country)
     if address:
         nuts["nuts1"] = address.nuts1_id
@@ -303,10 +304,11 @@ def clean_scheme_id(scheme: str) -> str:
     return make_entity_id(normalize(scheme))
 
 
-def to_decimal(value: str, allow_empty: bool | None = True) -> float:
-    if value is None and not allow_empty:
-        raise ValueError
-        return
+def to_decimal(value: str | None, allow_empty: bool | None = True) -> float | None:
+    if value is None:
+        if not allow_empty:
+            raise ValueError
+        return value
     if "," in value:
         if len(value.split(",")[-1]) > 2:
             raise ValueError
