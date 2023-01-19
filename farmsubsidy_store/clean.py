@@ -1,5 +1,6 @@
 import re
 from functools import lru_cache
+from typing import Any
 
 import pandas as pd
 import shortuuid
@@ -35,17 +36,20 @@ REQUIRED_SRC_COLUMNS = (
     # column name, *alternatives
     ("recipient_name",),
     ("recipient_country", "country"),
-    # (
-    #     "scheme",
-    #     "scheme_name",
-    #     "scheme_1",
-    #     "scheme_2",
-    #     "scheme_code_short",
-    #     "scheme_description",
-    # ),
     ("amount",),
     ("currency",),
     ("year",),
+)
+
+
+SRC_COLUMNS = (
+    # column name, alternative
+    # here: RO fixes
+    ("recipient_name", "denumire_beneficiar"),
+    ("recipient_id", "cod_unic"),
+    ("recipient_location", "localitate"),
+    ("scheme", "masura"),
+    ("amount", "cuantum"),
 )
 
 
@@ -62,12 +66,7 @@ ADDRESS_PARTS = (
 LRU = 1_000_000
 
 
-ANONYMOUS = (
-    "**",
-    "--",
-    "private individual",
-    "nije primjenjivo",
-)
+EMPTY = ("**", "--", "private individual", "nije primjenjivo", "nan # nan", "ro-nan")
 
 
 @lru_cache(LRU)
@@ -142,6 +141,19 @@ def clean_source(
     else:
         df["country"] = df["country"].fillna(country).map(lambda x: x or country)
 
+    # load data from other columns (FIXME ro)
+    def _get_value(row: pd.Series, col, *alt_cols) -> str | None:
+        value = row.get(col)
+        if _test_value(value):
+            return value
+        for col in alt_cols:
+            value = row.get(col)
+            if _test_value(value):
+                return value
+
+    for col, *alt_cols in SRC_COLUMNS:
+        df[col] = df.apply(lambda r: _get_value(r, col, *alt_cols), axis=1)
+
     return df.applymap(_clean)
 
 
@@ -162,19 +174,21 @@ def validate_country(
 
 
 @lru_cache(LRU)
-def _test_name(name: str) -> bool:
-    name = name.lower()
-    for test in ANONYMOUS:
-        if test in name:
+def _test_value(value: Any) -> bool:
+    if not value or pd.isna(value):
+        return False
+    value = value.lower()
+    for test in EMPTY:
+        if test in value:
             return False
-    return generate_fingerprint(name)
+    return bool(generate_fingerprint(value))
 
 
 @lru_cache(LRU)
 def _clean_recipient_name(
     name: str, country: str, ident: str | None = None
 ) -> str | None:
-    if _test_name(name):
+    if _test_value(name):
         return collapse_spaces(name)
     if generate_fingerprint(ident):
         return " ".join((country, ident))
@@ -429,10 +443,11 @@ def clean(
         df = apply_nuts(df)
         # validate FIXME performance
         # df = pd.DataFrame(Payment(**r).dict() for _, r in df.fillna("").iterrows())
+        df = df.drop_duplicates(subset=("pk",))
         for c in Payment.__fields__:
             if c not in df:
                 df[c] = ""
-        df = df.drop_duplicates(subset=("pk",))
+        df = df[[c for c in Payment.__fields__]]
     for e in bulk_errors:
         _handle_error(log, e, False, fpath=fpath or "stdin")
     clear_lru()
