@@ -306,6 +306,7 @@ def clean_scheme_id(scheme: str) -> str:
 def to_decimal(value: str, allow_empty: bool | None = True) -> float:
     if value is None and not allow_empty:
         raise ValueError
+        return
     if "," in value:
         if len(value.split(",")[-1]) > 2:
             raise ValueError
