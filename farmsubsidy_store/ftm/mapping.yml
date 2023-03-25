@@ -1,4 +1,4 @@
-farmsubsidy:
+farmsubsidies:
   queries:
     - entities:
         recipient:
@@ -13,8 +13,6 @@ farmsubsidy:
               column: recipient_country
             website:
               column: recipient_url
-            weakAlias:
-              column: recipient_fingerprint
         payment:
           schema: Payment
           id_column: pk
@@ -22,7 +20,7 @@ farmsubsidy:
             purpose:
               column: scheme
             programme:
-              column: scheme_code
+              literal: "The Common Agricultural Policy (CAP)"
             description:
               column: scheme_description
             amount:
