@@ -40,13 +40,16 @@ import: init
 	fi
 
 
-ftm: clean
+ftm:  # clean
 	mkdir -p $(DATA_ROOT)/ftm
 	parallel "gunzip -c {} | ftm map-csv mapping.yml | ftm store write -d farmsubsidy" ::: $(DATA_ROOT)/cleaned/*.gz
 	ftm store iterate -d farmsubsidy > $(DATA_ROOT)/ftm/farmsubsidy.ftm.ijson
 
 clickhouse:  # for dev, doesn't persist data
 	docker run -p 8123:8123 -p 9000:9000 --ulimit nofile=262144:262144 clickhouse/clickhouse-server
+
+redis: # dev
+	docker run -p 6379:6379 redis
 
 api:  install.api  # for developement
 	DEBUG=1 uvicorn farmsubsidy_store.api:app --reload
