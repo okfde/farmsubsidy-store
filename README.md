@@ -14,6 +14,27 @@ Pipeline steps:
 - clean source data, including currency conversion for the `amount` field
 - import cleaned data
 
+## tl;dr
+
+Use the docker container to make things easier.
+
+1.) generate data
+
+    export DATA_ROOT=./data
+    export DATA_BASIC_AUTH=farmsubsidy:***
+    export DOCKER_IMAGE=ghcr.io/okfde/farmsubsidy:main
+
+    make download
+
+    docker run -v `realpath $DATA_ROOT`:/farmsubsidy/data -e PARALLEL="-j6" $DOCKER_IMAGE make clean
+
+2.) import data
+
+Up and running clickhouse: `make clickhouse`
+
+    docker run -v `realpath $DATA_ROOT`:/farmsubsidy/data -e PARALLEL="-j6" $DOCKER_IMAGE make import
+
+
 ## cli
 
 The cli requires **Python 3.10** or above because of the use of recent type annotations.
