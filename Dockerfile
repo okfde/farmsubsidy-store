@@ -9,10 +9,11 @@ COPY VERSION /farmsubsidy/VERSION
 COPY Makefile /farmsubsidy/Makefile
 
 ENV DEBUG=0
+ENV PARALLEL=-j`nproc`
 WORKDIR /farmsubsidy
 RUN pip install -U pip setuptools
 RUN pip install gunicorn uvicorn
-RUN pip install ".[geo]"
+RUN pip install -e ".[geo]"
 
 
 # Run the green unicorn with 1 worker (scale via docker then)
