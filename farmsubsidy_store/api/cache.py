@@ -21,13 +21,13 @@ class Cache:
 
     def set(self, key: str, data: Any):
         if self.cache is not None:
-            key = f"{settings.DATABASE_TABLE}-{key}"
+            key = f"{settings.DATABASE_TABLE}:{settings.VERSION}:{key}"
             data = self.serializer.dumps(data)
             self.cache.set(key, data)
 
     def get(self, key: str) -> Any:
         if self.cache is not None:
-            key = f"{settings.DATABASE_TABLE}-{key}"
+            key = f"{settings.DATABASE_TABLE}:{settings.VERSION}:{key}"
             res = self.cache.get(key)
             if res is not None:
                 log.info(f"Cache hit: `{key}`")
