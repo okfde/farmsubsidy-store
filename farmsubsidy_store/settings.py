@@ -2,6 +2,8 @@ import os
 
 from banal import as_bool
 
+from farmsubsidy_store import __version__
+
 from .exceptions import ImproperlyConfigured
 
 
@@ -12,6 +14,8 @@ def get_env(name, default=None):
     if default is not None:
         return str(default)
 
+
+VERSION = __version__
 
 DEBUG = as_bool(get_env("DEBUG"))
 
