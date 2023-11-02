@@ -37,7 +37,11 @@ origins = [
     settings.ALLOWED_ORIGIN,
 ]
 app = FastAPI(
-    title="Farmsubsidy.org API",
+    debug=settings.DEBUG,
+    version=settings.VERSION,
+    title=settings.API_TITLE,
+    contact=settings.API_CONTACT,
+    description=settings.API_DESCRIPTION,
     redoc_url="/",
 )
 app.add_middleware(

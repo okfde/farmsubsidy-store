@@ -49,6 +49,23 @@ API_TOKEN_SECRET = get_env("API_TOKEN_SECRET", "fsscrt")
 API_TOKEN_LIFETIME = int(get_env("API_TOKEN_LIFETIME", 60 * 24))  # in minutes
 API_HTTPS = as_bool(get_env("API_HTTPS"), False)
 
+API_TITLE = get_env("API_TITLE", "Farmsubsidy.org API")
+API_CONTACT = {
+    "name": get_env("API_CONTACT_NAME", "Farmsubsidy.org"),
+    "url": get_env("API_CONTACT_URL", "https://farmsubsidy.org"),
+    "email": get_env("API_CONTACT_EMAIL", "farmsubsidy@okfn.de")
+}
+API_DESCRIPTION = """
+This api exposes detailed data relating to payments and recipients of farm
+subsidies in every EU member state based on EU's Common Agricultural Policy
+(CAP).
+
+The data is stored in a [clickhouse](https://clickhouse.com/) instance and feeds
+the public website [farmsubsidy.org](https://farmsubsidy.org)
+
+[data parsing and api repo on github](https://github.com/okfde/farmsubsidy-store)
+"""
+
 PUBLIC_YEARS = get_env("API_PUBLIC_YEARS", "2020,2021").split(",")
 EXPORT_DIRECTORY = get_env("EXPORT_DIRECTORY", os.path.join(DATA_ROOT, "exports"))
 EXPORT_PUBLIC_PATH = get_env("EXPORT_PUBLIC_PATH", "/exports")
