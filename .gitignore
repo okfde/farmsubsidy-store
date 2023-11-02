@@ -1,3 +1,6 @@
+fs_logins.csv
+.htpasswd
+cache.db*
 farmsubsidy.duckdb
 data
 
