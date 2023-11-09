@@ -18,6 +18,16 @@ download:
 	mkdir -p $(DATA_ROOT)/src/flat
 	wget -4 -P $(DATA_ROOT)/src/flat/ -r -l2 -H -nd -N -np -A "gz" -e robots=off $(DATA_DOMAIN)/Flat/
 
+s3.up:
+	aws --endpoint-url https://s3.investigativedata.org s3 sync $(DATA_ROOT)/src/latest s3://farmsubsidy/latest
+	aws --endpoint-url https://s3.investigativedata.org s3 sync $(DATA_ROOT)/src/flat s3://farmsubsidy/Flat
+	aws --endpoint-url https://s3.investigativedata.org s3 sync $(DATA_ROOT)/cleaned s3://farmsubsidy/cleaned
+
+s3.down:
+	aws --endpoint-url https://s3.investigativedata.org s3 sync s3://farmsubsidy/latest $(DATA_ROOT)/src/latest
+	aws --endpoint-url https://s3.investigativedata.org s3 sync s3://farmsubsidy/Flat $(DATA_ROOT)/src/flat
+	aws --endpoint-url https://s3.investigativedata.org s3 sync s3://farmsubsidy/cleaned $(DATA_ROOT)/cleaned
+
 clean:
 	mkdir -p $(DATA_ROOT)/cleaned
 	parallel "fscli clean -i {} --ignore-errors | gzip > $(DATA_ROOT)/cleaned/{/.}.cleaned.csv.gz" ::: $(DATA_ROOT)/src/latest/*.csv.gz
