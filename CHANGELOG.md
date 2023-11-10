@@ -20,10 +20,8 @@ For some countries, we are still trying to get the data and will update them as 
 
 - Poland
 - Sweden
-- Lithuania
 - Finland
 - The Netherlands
-- Greece
 - Italy
 - Malta
 - Romania
