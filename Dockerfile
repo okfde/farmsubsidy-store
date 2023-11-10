@@ -9,7 +9,7 @@ COPY VERSION /farmsubsidy/VERSION
 COPY Makefile /farmsubsidy/Makefile
 
 WORKDIR /farmsubsidy
-RUN wget -O cache.db.gz https://cdn.investigativedata.org/farmsubsidy/cache.db.gz
+RUN wget -O cache.db.gz https://s3.investigativedata.org/farmsubsidy/cache.db.gz
 RUN gunzip cache.db.gz
 
 RUN pip install -U pip setuptools
