@@ -8,20 +8,37 @@ reports.
 
 Below a list of data updates since the relaunch of the platform on Dec. 1st, 2022.
 
+## 2023-11-10
+
+**2022 data added**
+
+For most of the countries we added the most recent data for the last year, 2022.
+
+This update marks the iteration of the public available data: From now on, the years 2021 and 2022 are publicly available, all others require a research account.
+
+For some countries, we are still trying to get the data and will update them as soon as possible. Countries that are **not updated yet**:
+
+- Poland
+- Sweden
+- Finland
+- The Netherlands
+- Italy
+- Malta
+- Romania
+
 ## 2023-01-19
 
 - Added [EU NUTS levels](https://ec.europa.eu/eurostat/web/nuts/national-structures) data & aggregations.
 - Fixed some data cleaning, this slightly changes some of the aggregated numbers on the platform.
 
-
 ## 2023-01-12
 
 Improved deduping and changed handling of empty names:
+
 - try to take a recipient id from the source, if any
 - generate random identifiers for empty names
 
 This slightly changes some of the aggregated numbers on the platform.
-
 
 ## 2022-12-14
 

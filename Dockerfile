@@ -9,7 +9,7 @@ COPY VERSION /farmsubsidy/VERSION
 COPY Makefile /farmsubsidy/Makefile
 
 WORKDIR /farmsubsidy
-RUN wget -O cache.db.gz https://cdn.investigativedata.org/farmsubsidy/cache.db.gz
+RUN wget -O cache.db.gz https://s3.investigativedata.org/farmsubsidy/cache.db.gz
 RUN gunzip cache.db.gz
 
 RUN pip install -U pip setuptools
@@ -19,5 +19,4 @@ RUN pip install -e ".[geo]"
 ENV DEBUG=0
 ENV PARALLEL=-j`nproc`
 
-# Run the green unicorn with 1 worker (scale via docker then)
-CMD ["uvicorn", "farmsubsidy_store.api:app", "--proxy-headers", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["gunicorn", "farmsubsidy_store.api:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker"]

@@ -59,6 +59,7 @@ ADDRESS_PARTS = (
     "recipient_street2",
     "recipient_location",
     "recipient_postcode",
+    "recipient_county",
     "recipient_country",
 )
 
@@ -213,8 +214,10 @@ def make_entity_id(*parts) -> str:
 
 def clean_recipient_id(row: pd.Series) -> str:
     """deduplicate recipients via generated id from country, name, address"""
+    # FIXME respect source ids if present? 
     fp = row["recipient_fingerprint"]
     assert fp is not None and fp != "", dict(row)
+    # FIXME get rid of uuid!!
     return make_entity_id(
         row["recipient_country"],
         row["recipient_fingerprint"],
