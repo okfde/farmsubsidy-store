@@ -19,5 +19,4 @@ RUN pip install -e ".[geo]"
 ENV DEBUG=0
 ENV PARALLEL=-j`nproc`
 
-# Run the green unicorn with 1 worker (scale via docker then)
-CMD ["uvicorn", "farmsubsidy_store.api:app", "--proxy-headers", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["gunicorn", "ftmstore_fastapi.api:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker"]
