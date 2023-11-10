@@ -19,4 +19,4 @@ RUN pip install -e ".[geo]"
 ENV DEBUG=0
 ENV PARALLEL=-j`nproc`
 
-ENTRYPOINT ["gunicorn", "ftmstore_fastapi.api:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker"]
+ENTRYPOINT ["gunicorn", "farmsubsidy_store.api:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker"]
