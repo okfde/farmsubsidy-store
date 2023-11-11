@@ -75,8 +75,8 @@ async def payments(
     Get a list of `Payment` object based on filters.
 
     Example queries:
-    - [All payments for Slovakia in 2020 ordered by amount (descending)](/payments?country=SK&year=2020&order_by=-amount)
-    - [All payments related to climate schemes in 2020](/payments?year=2020&scheme__ilike=%climate%)
+    - [All payments for Slovakia in 2022 ordered by amount (descending)](/payments?country=SK&year=2022&order_by=-amount)
+    - [All payments related to climate schemes in 2022](/payments?year=2022&scheme__ilike=%climate%)
     - [Get all payments for a specific recipient via `recipient_id`](/payments?recipient_id=2f5812af62c20b884ed5dbddbacaaba362525110)
 
     Example return data for `Payment` model:
