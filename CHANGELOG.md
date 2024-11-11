@@ -28,7 +28,7 @@ For some countries, we are still trying to get the data and will update them as 
 
 ## 2023-01-19
 
-- Added [EU NUTS levels](https://ec.europa.eu/eurostat/web/nuts/national-structures) data & aggregations.
+- Added [EU NUTS levels](https://web.archive.org/web/20231219020551/https://ec.europa.eu/eurostat/web/nuts/national-structures) data & aggregations.
 - Fixed some data cleaning, this slightly changes some of the aggregated numbers on the platform.
 
 ## 2023-01-12
