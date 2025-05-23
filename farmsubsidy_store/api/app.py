@@ -75,8 +75,8 @@ async def payments(
     Get a list of `Payment` object based on filters.
 
     Example queries:
-    - [All payments for Slovakia in 2020 ordered by amount (descending)](/payments?country=SK&year=2020&order_by=-amount)
-    - [All payments related to climate schemes in 2020](/payments?year=2020&scheme__ilike=%climate%)
+    - [All payments for Slovakia in 2022 ordered by amount (descending)](/payments?country=SK&year=2022&order_by=-amount)
+    - [All payments related to climate schemes in 2022](/payments?year=2022&scheme__ilike=%climate%)
     - [Get all payments for a specific recipient via `recipient_id`](/payments?recipient_id=2f5812af62c20b884ed5dbddbacaaba362525110)
 
     Example return data for `Payment` model:
@@ -161,7 +161,7 @@ async def recipients(
       "country": "DE",
       "url": [],
       "years": [
-        2020,
+        2022,
         2015,
         2017,
         2019,
@@ -284,7 +284,7 @@ async def countries(
       "total_recipients": 30276,
       "total_payments": 264854,
       "years": [
-        2020,
+        2022,
         2015,
         2017,
         2016,
@@ -312,7 +312,7 @@ async def years(
     Return aggregated values for years based on filter criteria.
 
     Of course, you can filter by `years` to
-    [get a single year](/years?year=2020).
+    [get a single year](/years?year=2022).
 
     There are two kinds of filters:
 
@@ -329,7 +329,7 @@ async def years(
 
     ```json
     {
-      "year": 2020,
+      "year": 2022,
       "total_recipients": 4300168,
       "total_payments": 18301312,
       "countries": [
@@ -401,12 +401,14 @@ async def locations(
     {
       "location": "ADMONT, 8913, AT",
       "years": [
+        2022,
+        2021,
         2020,
-        2015,
-        2017,
-        2016,
         2019,
         2018,
+        2017,
+        2016,
+        2015,
         2014
       ],
       "countries": [
